@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+
+description="dae transparent proxy service"
+command="/usr/sbin/dae"
+command_args="run --config /etc/dae/config.dae"
+command_background="yes"
+pidfile="/run/dae.pid"
+output_log="/var/log/dae/dae.log"
+error_log="/var/log/dae/dae.err"
+
+depend() {
+    need net check-ebpf
+    after firewall
+}
+
+start_pre() {
+    checkpath --directory --mode 0755 /var/log/dae
+    if [ ! -s /etc/dae/config.dae ]; then
+        eerror "/etc/dae/config.dae is missing or empty"
+        return 1
+    fi
+}

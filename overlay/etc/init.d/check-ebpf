@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+description="Validate eBPF prerequisites for dae"
+command="/usr/local/sbin/check-ebpf"
+command_background="no"
+
+depend() {
+    need localmount
+    before dae
+}
+
+start() {
+    ebegin "Checking eBPF prerequisites"
+    ${command}
+    eend $?
+}

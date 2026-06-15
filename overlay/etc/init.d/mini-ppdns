@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+
+description="mini-ppdns DNS failover service"
+command="/usr/sbin/mini-ppdns"
+command_args="-config /etc/mini-ppdns.ini"
+command_background="yes"
+pidfile="/run/mini-ppdns.pid"
+output_log="/var/log/mini-ppdns/mini-ppdns.log"
+error_log="/var/log/mini-ppdns/mini-ppdns.err"
+
+depend() {
+    need net
+    before dae
+}
+
+start_pre() {
+    checkpath --directory --mode 0755 /var/log/mini-ppdns
+    if [ ! -s /etc/mini-ppdns.ini ]; then
+        eerror "/etc/mini-ppdns.ini is missing or empty"
+        return 1
+    fi
+}

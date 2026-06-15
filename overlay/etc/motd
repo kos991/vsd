@@ -1,0 +1,10 @@
+dae Alpine Gateway
+
+Useful commands:
+  dae-gateway-manager status
+  dae-gateway-manager ebpf
+  dae-gateway-manager logs
+
+Edit:
+  /etc/dae/config.dae
+  /etc/mini-ppdns.ini

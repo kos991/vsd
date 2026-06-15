@@ -1,0 +1,85 @@
+name: Build Alpine gateway OVA
+
+on:
+  workflow_dispatch:
+    inputs:
+      alpine_version:
+        description: Alpine release branch
+        required: true
+        default: '3.20'
+      dae_version:
+        description: dae release tag, or latest
+        required: true
+        default: latest
+      mini_ppdns_ref:
+        description: mini-ppdns binary branch/ref
+        required: true
+        default: release
+      disk_size:
+        description: Raw disk image size
+        required: true
+        default: 4G
+      memory_mb:
+        description: OVF memory hint in MB
+        required: true
+        default: '1024'
+      cpu_count:
+        description: OVF CPU hint
+        required: true
+        default: '1'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build OVA
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ALPINE_VERSION: ${{ inputs.alpine_version }}
+      DAE_VERSION: ${{ inputs.dae_version }}
+      MINI_PPDNS_REF: ${{ inputs.mini_ppdns_ref }}
+      DISK_SIZE: ${{ inputs.disk_size }}
+      MEMORY_MB: ${{ inputs.memory_mb }}
+      CPU_COUNT: ${{ inputs.cpu_count }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bash \
+            ca-certificates \
+            curl \
+            dosfstools \
+            e2fsprogs \
+            fdisk \
+            grub2-common \
+            grub-pc-bin \
+            libarchive-tools \
+            parted \
+            qemu-utils \
+            rsync \
+            tar \
+            xz-utils
+
+      - name: Run template smoke tests
+        shell: pwsh
+        run: ./tests/smoke.ps1
+
+      - name: Build OVA
+        run: |
+          sudo --preserve-env=ALPINE_VERSION,DAE_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
+            bash scripts/build-alpine-ova.sh
+
+      - name: Upload OVA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dae-alpine-gateway-ova
+          path: |
+            dist/*.ova
+            dist/*.sha256
+          retention-days: 14

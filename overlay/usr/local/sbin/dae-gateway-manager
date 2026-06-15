@@ -1,0 +1,57 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<'EOF'
+Usage: dae-gateway-manager <command>
+
+Commands:
+  status    Show OpenRC status for gateway services
+  start     Start gateway services
+  stop      Stop gateway services
+  restart   Restart gateway services
+  logs      Tail dae and mini-ppdns logs
+  ebpf      Run eBPF preflight check
+  ip        Show addresses and routes
+EOF
+}
+
+case "${1:-}" in
+    status)
+        rc-service check-ebpf status || true
+        rc-service mini-ppdns status || true
+        rc-service dae status || true
+        ;;
+    start)
+        rc-service check-ebpf start
+        rc-service mini-ppdns start
+        rc-service dae start
+        ;;
+    stop)
+        rc-service dae stop || true
+        rc-service mini-ppdns stop || true
+        ;;
+    restart)
+        rc-service check-ebpf restart || rc-service check-ebpf start
+        rc-service mini-ppdns restart
+        rc-service dae restart
+        ;;
+    logs)
+        tail -n 80 -f \
+            /var/log/mini-ppdns/mini-ppdns.log \
+            /var/log/mini-ppdns/mini-ppdns.err \
+            /var/log/dae/dae.log \
+            /var/log/dae/dae.err
+        ;;
+    ebpf)
+        /usr/local/sbin/check-ebpf
+        ;;
+    ip)
+        ip addr
+        ip route
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
