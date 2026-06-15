@@ -27,6 +27,7 @@ Assert-FileContains '.github/workflows/build-ova.yml' 'actions/upload-artifact@v
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'linux-lts' 'Build script must install Alpine linux-lts for eBPF support.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'bpffs' 'Build script must configure bpffs mount.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'cgroup2' 'Build script must configure cgroup2 mount.'
+Assert-FileContains 'scripts/render-ovf.sh' '<rasd:ElementName>Hard disk 1</rasd:ElementName>[\s\S]*<rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>[\s\S]*<rasd:InstanceID>3</rasd:InstanceID>[\s\S]*<rasd:Parent>5</rasd:Parent>[\s\S]*<rasd:ResourceType>17</rasd:ResourceType>' 'Hard disk OVF item must keep RASD elements in schema order for strict importers.'
 Assert-FileContains 'scripts/install-dae.sh' 'daeuniverse/dae' 'dae installer must download from daeuniverse/dae.'
 Assert-FileContains 'scripts/install-mini-ppdns.sh' 'kkkgo/mini-ppdns' 'mini-ppdns installer must download from kkkgo/mini-ppdns.'
 Assert-FileContains 'overlay/etc/init.d/dae' 'check-ebpf' 'dae OpenRC service must depend on eBPF preflight.'

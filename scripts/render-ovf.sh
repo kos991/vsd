@@ -66,10 +66,10 @@ cat >"${OUT}" <<EOF
       </Item>
       <Item>
         <rasd:AddressOnParent>0</rasd:AddressOnParent>
-        <rasd:Parent>5</rasd:Parent>
         <rasd:ElementName>Hard disk 1</rasd:ElementName>
         <rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>
         <rasd:InstanceID>3</rasd:InstanceID>
+        <rasd:Parent>5</rasd:Parent>
         <rasd:ResourceType>17</rasd:ResourceType>
       </Item>
       <Item>
