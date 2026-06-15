@@ -172,13 +172,16 @@ CHROOT
 
 package_ova() {
   mkdir -p "${DIST_DIR}"
-  qemu-img convert -f raw -O vmdk -o subformat=streamOptimized "${RAW_IMAGE}" "${VMDK_IMAGE}"
+  local RAW_CAPACITY_BYTES
+  RAW_CAPACITY_BYTES="$(stat -c '%s' "${RAW_IMAGE}")"
+  qemu-img convert -f raw -O vmdk -o subformat=streamOptimized,adapter_type=lsilogic "${RAW_IMAGE}" "${VMDK_IMAGE}"
   bash "${ROOT_DIR}/scripts/render-ovf.sh" \
     "${IMAGE_NAME}" \
     "$(basename "${VMDK_IMAGE}")" \
     "${MEMORY_MB}" \
     "${CPU_COUNT}" \
-    "${OVF_FILE}"
+    "${OVF_FILE}" \
+    "${RAW_CAPACITY_BYTES}"
 
   (cd "${DIST_DIR}" && tar -cf "$(basename "${OVA_FILE}")" "$(basename "${OVF_FILE}")" "$(basename "${VMDK_IMAGE}")")
   sha256sum "${OVA_FILE}" "${VMDK_IMAGE}" "${OVF_FILE}" >"${DIST_DIR}/${IMAGE_NAME}.sha256"

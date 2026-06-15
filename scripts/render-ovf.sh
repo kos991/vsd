@@ -6,10 +6,15 @@ VMDK="${2:?vmdk filename required}"
 MEMORY_MB="${3:?memory mb required}"
 CPU_COUNT="${4:?cpu count required}"
 OUT="${5:?output ovf required}"
+CAPACITY_BYTES="${6:?capacity bytes required}"
+
+if ! [[ "${CAPACITY_BYTES}" =~ ^[0-9]+$ ]]; then
+  echo "capacity bytes must be a single decimal integer" >&2
+  exit 1
+fi
 
 VMDK_PATH="$(dirname "${OUT}")/${VMDK}"
 VMDK_SIZE="$(stat -c '%s' "${VMDK_PATH}")"
-CAPACITY_BYTES="$(qemu-img info --output=json "${VMDK_PATH}" | grep -Eo '"virtual-size"[[:space:]]*:[[:space:]]*[0-9]+' | grep -Eo '[0-9]+')"
 
 cat >"${OUT}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -61,7 +66,7 @@ cat >"${OUT}" <<EOF
         <rasd:AddressOnParent>0</rasd:AddressOnParent>
         <rasd:ElementName>SCSI Controller 0</rasd:ElementName>
         <rasd:InstanceID>5</rasd:InstanceID>
-        <rasd:ResourceSubType>VirtualSCSI</rasd:ResourceSubType>
+        <rasd:ResourceSubType>lsilogic</rasd:ResourceSubType>
         <rasd:ResourceType>6</rasd:ResourceType>
       </Item>
       <Item>
@@ -76,10 +81,10 @@ cat >"${OUT}" <<EOF
         <rasd:AddressOnParent>7</rasd:AddressOnParent>
         <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
         <rasd:Connection>VM Network</rasd:Connection>
-        <rasd:Description>VmxNet3 ethernet adapter</rasd:Description>
+        <rasd:Description>E1000 ethernet adapter</rasd:Description>
         <rasd:ElementName>Network adapter 1</rasd:ElementName>
         <rasd:InstanceID>4</rasd:InstanceID>
-        <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
+        <rasd:ResourceSubType>E1000</rasd:ResourceSubType>
         <rasd:ResourceType>10</rasd:ResourceType>
       </Item>
     </VirtualHardwareSection>
