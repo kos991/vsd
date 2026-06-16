@@ -45,6 +45,16 @@ Inside the generated VM:
 - `/var/log/dae/`
 - `/var/log/mini-ppdns/`
 
+Initial access:
+
+- Console or SSH login: `root / dae123456`
+- SSH uses DHCP on `eth0`, port `22`.
+- Change the root password after first login:
+
+```sh
+passwd
+```
+
 Services:
 
 ```sh

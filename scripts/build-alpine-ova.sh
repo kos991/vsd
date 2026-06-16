@@ -98,12 +98,17 @@ apk add --no-cache \
   linux-lts \
   nftables \
   openrc \
+  openssh-server \
   qemu-guest-agent \
   tar \
   xz
 
 echo dae-gateway >/etc/hostname
+echo 'root:dae123456' | chpasswd
 setup-timezone -z Asia/Shanghai || true
+ssh-keygen -A
+sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 rc-update add devfs sysinit
 rc-update add dmesg sysinit
 rc-update add mdev sysinit
@@ -114,6 +119,7 @@ rc-update add hostname boot
 rc-update add bootmisc boot
 rc-update add networking boot
 rc-update add qemu-guest-agent default
+rc-update add sshd default
 rc-update add local default
 CHROOT
 }
