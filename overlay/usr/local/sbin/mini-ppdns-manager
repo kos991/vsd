@@ -1,0 +1,123 @@
+#!/bin/sh
+set -eu
+
+service_name="mini-ppdns"
+binary_path="/usr/sbin/mini-ppdns"
+service_path="/etc/init.d/mini-ppdns"
+config_path="/etc/mini-ppdns.ini"
+log_files="/var/log/mini-ppdns/mini-ppdns.log /var/log/mini-ppdns/mini-ppdns.err"
+
+is_installed() { [ -x "$binary_path" ]; }
+has_service() { [ -x "$service_path" ]; }
+has_config() { [ -f "$config_path" ]; }
+
+version_text() {
+    if is_installed; then
+        "$binary_path" --version 2>/dev/null | head -1 || ls -l "$binary_path" | awk '{print "installed, size " $5 " bytes"}'
+    else
+        printf 'not installed'
+    fi
+}
+
+service_state() {
+    if has_service; then
+        rc-service "$service_name" status >/dev/null 2>&1 && printf 'running' || printf 'stopped'
+    else
+        printf 'not installed'
+    fi
+}
+
+boot_state() {
+    rc-update show default 2>/dev/null | grep -q "[[:space:]]${service_name}[[:space:]]" && printf 'enabled' || printf 'disabled'
+}
+
+upstream_url() {
+    ref="${MINI_PPDNS_REF:-release}"
+    case "$(uname -m)" in
+        x86_64) asset="mini-ppdns_x86_64" ;;
+        aarch64) asset="mini-ppdns_aarch64" ;;
+        armv7l) asset="mini-ppdns_armv7l" ;;
+        armv6l) asset="mini-ppdns_armv6l" ;;
+        i686) asset="mini-ppdns_i686" ;;
+        *) printf 'unsupported'; return ;;
+    esac
+    printf 'https://raw.githubusercontent.com/kkkgo/mini-ppdns/%s/%s' "$ref" "$asset"
+}
+
+status_view() {
+    printf '\nmini-ppdns status\n\n'
+    is_installed && printf 'Install: installed\n' || printf 'Install: missing\n'
+    printf 'Version: %s\n' "$(version_text)"
+    printf 'Service: %s\n' "$(service_state)"
+    printf 'Boot: %s\n' "$(boot_state)"
+    has_config && printf 'Config: ready\n' || printf 'Config: missing\n'
+}
+
+details_view() {
+    status_view
+    printf '\nDetails\n'
+    printf 'Binary: %s %s\n' "$binary_path" "$(is_installed && printf ok || printf missing)"
+    printf 'OpenRC: %s %s\n' "$service_path" "$(has_service && printf ok || printf missing)"
+    printf 'Config: %s %s\n' "$config_path" "$(has_config && printf ok || printf missing)"
+    printf 'Logs: %s\n' "$log_files"
+}
+
+updates_view() {
+    status_view
+    printf '\nUpdate check\n'
+    url="$(upstream_url)"
+    if [ "$url" = "unsupported" ]; then
+        printf 'Upstream: unsupported architecture %s\n' "$(uname -m)"
+    elif curl -fsI "$url" >/dev/null 2>&1; then
+        printf 'Upstream: available at %s\n' "${MINI_PPDNS_REF:-release}"
+    else
+        printf 'Upstream: unable to check\n'
+    fi
+    printf 'Action: check only, no binary replacement\n'
+}
+
+menu() {
+    while :; do
+        status_view
+        cat <<'EOF'
+
+1) Start mini-ppdns
+2) Stop mini-ppdns
+3) Restart mini-ppdns
+4) Follow logs
+5) Check updates
+6) Details
+0) Back
+
+EOF
+        printf 'Choose: '
+        read -r choice || exit 0
+        choice="$(printf '%s' "$choice" | tr -d '\r')"
+        case "$choice" in
+            1) rc-service mini-ppdns start ;;
+            2) rc-service mini-ppdns stop || true ;;
+            3) rc-service mini-ppdns restart ;;
+            4) tail -n 80 -f $log_files ;;
+            5) updates_view ;;
+            6) details_view ;;
+            0) exit 0 ;;
+            *) printf 'Unknown choice: %s\n' "$choice" ;;
+        esac
+        if [ "$choice" != "4" ]; then
+            printf '\nPress Enter to continue...'
+            read -r _ || exit 0
+        fi
+    done
+}
+
+case "${1:-menu}" in
+    menu) menu ;;
+    status) status_view ;;
+    start) rc-service mini-ppdns start ;;
+    stop) rc-service mini-ppdns stop || true ;;
+    restart) rc-service mini-ppdns restart ;;
+    logs) tail -n 80 -f $log_files ;;
+    updates) updates_view ;;
+    details) details_view ;;
+    *) printf 'Usage: mini-ppdns-manager [menu|status|start|stop|restart|logs|updates|details]\n'; exit 1 ;;
+esac

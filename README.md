@@ -40,6 +40,9 @@ Inside the generated VM:
 - `/usr/sbin/mini-ppdns`
 - `/etc/dae/config.dae`
 - `/etc/mini-ppdns.ini`
+- `/usr/local/sbin/gateway`
+- `/usr/local/sbin/dae-manager`
+- `/usr/local/sbin/mini-ppdns-manager`
 - `/usr/local/sbin/dae-gateway-manager`
 - `/usr/local/sbin/check-ebpf`
 - `/var/log/dae/`
@@ -63,6 +66,42 @@ rc-service mini-ppdns start
 rc-service dae start
 ```
 
+Quick menu:
+
+```sh
+gateway
+```
+
+The menu uses number shortcuts:
+
+- `1`: dae manager
+- `2`: mini-ppdns manager
+- `3`: eBPF check
+- `4`: IP and routes
+- `5`: Gateway overview
+- `0`: exit
+
+Service managers show a short status first so the common answer is easy to read:
+
+```sh
+dae-manager status
+mini-ppdns-manager status
+```
+
+The normal status view shows install state, version, service state, boot state, and config state. Use `Details` in the menu, or run `details`, when you need technical paths such as binaries, OpenRC files, config files, and log files:
+
+```sh
+dae-manager details
+mini-ppdns-manager details
+```
+
+Update checks are service-specific and check only; they do not replace binaries or restart services:
+
+```sh
+dae-manager updates
+mini-ppdns-manager updates
+```
+
 `mini-ppdns` starts by default. `dae` is installed but not enabled at boot until you edit `/etc/dae/config.dae` for your nodes and routing policy. Enable it with:
 
 ```sh
@@ -73,9 +112,9 @@ rc-service dae start
 Manager:
 
 ```sh
-dae-gateway-manager status
-dae-gateway-manager logs
-dae-gateway-manager restart
+gateway
+dae-manager
+mini-ppdns-manager
 dae-gateway-manager ebpf
 ```
 

@@ -134,6 +134,14 @@ DAE_VERSION='${DAE_VERSION}' /tmp/install-dae.sh
 MINI_PPDNS_REF='${MINI_PPDNS_REF}' /tmp/install-mini-ppdns.sh
 rm -f /tmp/install-dae.sh /tmp/install-mini-ppdns.sh
 chmod +x /usr/local/sbin/check-ebpf /usr/local/sbin/dae-gateway-manager
+chmod +x /usr/local/sbin/gateway
+chmod +x /usr/local/sbin/dae-manager /usr/local/sbin/mini-ppdns-manager
+cat >/etc/dae-gateway-release <<EOF
+ALPINE_VERSION='${ALPINE_VERSION}'
+DAE_VERSION='${DAE_VERSION}'
+MINI_PPDNS_REF='${MINI_PPDNS_REF}'
+IMAGE_NAME='${IMAGE_NAME}'
+EOF
 chmod +x /etc/init.d/check-ebpf /etc/init.d/dae /etc/init.d/mini-ppdns
 rc-update add check-ebpf default
 rc-update add mini-ppdns default
