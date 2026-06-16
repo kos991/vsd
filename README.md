@@ -102,6 +102,14 @@ dae-manager updates
 mini-ppdns-manager updates
 ```
 
+Configure mini-ppdns DNS endpoints without editing the ini file manually:
+
+```sh
+mini-ppdns-manager configure
+```
+
+The wizard can apply the recommended DNS set, ask for custom DNS IPs, show the current config, and optionally restart `mini-ppdns` after writing `/etc/mini-ppdns.ini`. DNS endpoints can be entered as `1.1.1.1` or `1.1.1.1:53`; missing ports are completed as `:53`.
+
 `mini-ppdns` starts by default. `dae` is installed but not enabled at boot until you edit `/etc/dae/config.dae` for your nodes and routing policy. Enable it with:
 
 ```sh
