@@ -23,6 +23,9 @@ function Assert-FileContains {
 }
 
 Assert-FileContains '.github/workflows/build-ova.yml' 'workflow_dispatch' 'Workflow must support manual Run workflow.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'push:[\s\S]*branches:[\s\S]*- main' 'Workflow must auto-build when main is pushed.'
+Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.alpine_version \|\| '3\.20'" 'Push-triggered builds must fall back to the default Alpine version.'
+Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.disk_size \|\| '4G'" 'Push-triggered builds must fall back to the default disk size.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'actions/upload-artifact@v4' 'Workflow must upload OVA artifact.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'linux-lts' 'Build script must install Alpine linux-lts for eBPF support.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'openssh-server' 'Build script must install OpenSSH server for first login access.'

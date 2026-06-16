@@ -1,6 +1,9 @@
 name: Build Alpine gateway OVA
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       alpine_version:
@@ -37,12 +40,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      ALPINE_VERSION: ${{ inputs.alpine_version }}
-      DAE_VERSION: ${{ inputs.dae_version }}
-      MINI_PPDNS_REF: ${{ inputs.mini_ppdns_ref }}
-      DISK_SIZE: ${{ inputs.disk_size }}
-      MEMORY_MB: ${{ inputs.memory_mb }}
-      CPU_COUNT: ${{ inputs.cpu_count }}
+      ALPINE_VERSION: ${{ inputs.alpine_version || '3.20' }}
+      DAE_VERSION: ${{ inputs.dae_version || 'latest' }}
+      MINI_PPDNS_REF: ${{ inputs.mini_ppdns_ref || 'release' }}
+      DISK_SIZE: ${{ inputs.disk_size || '4G' }}
+      MEMORY_MB: ${{ inputs.memory_mb || '1024' }}
+      CPU_COUNT: ${{ inputs.cpu_count || '1' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
