@@ -8,6 +8,7 @@ run_action() {
         3) dae-gateway-manager ebpf ;;
         4) dae-gateway-manager ip ;;
         5) dae-gateway-manager status ;;
+        6) qos-manager ;;
         0) exit 0 ;;
         *) printf 'Unknown choice: %s\n' "$1" ;;
     esac
@@ -23,6 +24,7 @@ dae Alpine Gateway
 3) eBPF check
 4) IP and routes
 5) Gateway overview
+6) QoS / CAKE
 0) Exit
 
 EOF

@@ -1,0 +1,166 @@
+#!/bin/sh
+set -eu
+
+config_path="/etc/dae-gateway-qos.conf"
+ifb_dev="ifb4dae"
+
+load_config() {
+    ENABLED="no"
+    WAN_IFACE="eth0"
+    DOWNLOAD="100mbit"
+    UPLOAD="20mbit"
+    if [ -r "$config_path" ]; then
+        # shellcheck disable=SC1090
+        . "$config_path"
+    fi
+}
+
+save_config() {
+    {
+        printf "ENABLED='%s'\n" "$ENABLED"
+        printf "WAN_IFACE='%s'\n" "$WAN_IFACE"
+        printf "DOWNLOAD='%s'\n" "$DOWNLOAD"
+        printf "UPLOAD='%s'\n" "$UPLOAD"
+    } >"$config_path"
+}
+
+tc_exists() {
+    command -v tc >/dev/null 2>&1
+}
+
+qdisc_summary() {
+    if tc_exists; then
+        tc qdisc show dev "$WAN_IFACE" 2>/dev/null || true
+        tc qdisc show dev "$ifb_dev" 2>/dev/null || true
+    else
+        printf 'tc: missing\n'
+    fi
+}
+
+status_view() {
+    load_config
+    printf '\nQoS / CAKE status\n\n'
+    printf 'Enabled: %s\n' "$ENABLED"
+    printf 'WAN: %s\n' "$WAN_IFACE"
+    printf 'Download: %s\n' "$DOWNLOAD"
+    printf 'Upload: %s\n' "$UPLOAD"
+    if tc_exists; then
+        tc qdisc show dev "$WAN_IFACE" 2>/dev/null | grep -q cake && printf 'Upload shaping: active\n' || printf 'Upload shaping: inactive\n'
+        tc qdisc show dev "$ifb_dev" 2>/dev/null | grep -q cake && printf 'Download shaping: active\n' || printf 'Download shaping: inactive\n'
+    else
+        printf 'tc: missing\n'
+    fi
+}
+
+details_view() {
+    status_view
+    printf '\nDetails\n'
+    printf 'Config: %s\n' "$config_path"
+    printf 'IFB: %s\n' "$ifb_dev"
+    qdisc_summary
+}
+
+clear_qos() {
+    load_config
+    if tc_exists; then
+        tc qdisc del dev "$WAN_IFACE" ingress >/dev/null 2>&1 || true
+        tc qdisc del dev "$WAN_IFACE" root >/dev/null 2>&1 || true
+        tc qdisc del dev "$ifb_dev" root >/dev/null 2>&1 || true
+    fi
+    ip link set "$ifb_dev" down >/dev/null 2>&1 || true
+}
+
+apply_qos() {
+    load_config
+    if [ "$ENABLED" != "yes" ]; then
+        printf 'QoS disabled in %s\n' "$config_path"
+        return 0
+    fi
+    if ! tc_exists; then
+        printf 'tc is missing. Install iproute2-tc.\n' >&2
+        return 1
+    fi
+
+    modprobe ifb numifbs=1 2>/dev/null || modprobe ifb 2>/dev/null || true
+    ip link add "$ifb_dev" type ifb >/dev/null 2>&1 || true
+    ip link set "$ifb_dev" up
+
+    tc qdisc del dev "$WAN_IFACE" ingress >/dev/null 2>&1 || true
+    tc qdisc del dev "$WAN_IFACE" root >/dev/null 2>&1 || true
+    tc qdisc del dev "$ifb_dev" root >/dev/null 2>&1 || true
+
+    tc qdisc add dev "$WAN_IFACE" ingress
+    tc filter add dev "$WAN_IFACE" parent ffff: protocol all u32 match u32 0 0 action mirred egress redirect dev "$ifb_dev"
+    tc qdisc add dev "$ifb_dev" root cake bandwidth "$DOWNLOAD" besteffort nat
+    tc qdisc replace dev "$WAN_IFACE" root cake bandwidth "$UPLOAD" besteffort nat
+    printf 'QoS applied: %s down / %s up on %s\n' "$DOWNLOAD" "$UPLOAD" "$WAN_IFACE"
+}
+
+enable_qos() {
+    load_config
+    printf 'WAN interface [%s]: ' "$WAN_IFACE"
+    read -r value || return 0
+    value="$(printf '%s' "$value" | tr -d '\r')"
+    [ -z "$value" ] || WAN_IFACE="$value"
+
+    printf 'Download bandwidth, e.g. 500mbit [%s]: ' "$DOWNLOAD"
+    read -r value || return 0
+    value="$(printf '%s' "$value" | tr -d '\r')"
+    [ -z "$value" ] || DOWNLOAD="$value"
+
+    printf 'Upload bandwidth, e.g. 50mbit [%s]: ' "$UPLOAD"
+    read -r value || return 0
+    value="$(printf '%s' "$value" | tr -d '\r')"
+    [ -z "$value" ] || UPLOAD="$value"
+
+    ENABLED="yes"
+    save_config
+    apply_qos
+}
+
+disable_qos() {
+    load_config
+    ENABLED="no"
+    save_config
+    clear_qos
+    printf 'QoS disabled.\n'
+}
+
+menu() {
+    while :; do
+        status_view
+        cat <<'EOF'
+
+1) Enable CAKE SQM
+2) Disable QoS
+3) Apply now
+4) Details
+0) Back
+
+EOF
+        printf 'Choose: '
+        read -r choice || exit 0
+        choice="$(printf '%s' "$choice" | tr -d '\r')"
+        case "$choice" in
+            1) enable_qos ;;
+            2) disable_qos ;;
+            3) apply_qos ;;
+            4) details_view ;;
+            0) exit 0 ;;
+            *) printf 'Unknown choice: %s\n' "$choice" ;;
+        esac
+        printf '\nPress Enter to continue...'
+        read -r _ || exit 0
+    done
+}
+
+case "${1:-menu}" in
+    menu) menu ;;
+    status) status_view ;;
+    enable) enable_qos ;;
+    disable) disable_qos ;;
+    apply) apply_qos ;;
+    clear) clear_qos ;;
+    details) details_view ;;
+    *) printf 'Usage: qos-manager [menu|status|enable|disable|apply|clear|details]\n'; exit 1 ;;
+esac

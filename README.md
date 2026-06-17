@@ -79,6 +79,7 @@ The menu uses number shortcuts:
 - `3`: eBPF check
 - `4`: IP and routes
 - `5`: Gateway overview
+- `6`: QoS / CAKE
 - `0`: exit
 
 Service managers show a short status first so the common answer is easy to read:
@@ -109,6 +110,14 @@ mini-ppdns-manager configure
 ```
 
 The wizard can apply the recommended DNS set, ask for custom DNS IPs, show the current config, and optionally restart `mini-ppdns` after writing `/etc/mini-ppdns.ini`. DNS endpoints can be entered as `1.1.1.1` or `1.1.1.1:53`; missing ports are completed as `:53`.
+
+Optional QoS uses Linux `tc`, CAKE, and IFB for upload and download shaping:
+
+```sh
+qos-manager
+```
+
+It is installed but disabled until you enter the WAN interface and real download/upload bandwidth. The settings are saved to `/etc/dae-gateway-qos.conf`; the `dae-qos` OpenRC service restores them at boot only when QoS is enabled. CAKE works best when bandwidth is set slightly below the real line rate, for example `450mbit` down and `45mbit` up on a 500/50 Mbps line.
 
 `mini-ppdns` starts by default. `dae` is installed but not enabled at boot until you edit `/etc/dae/config.dae` for your nodes and routing policy. Enable it with:
 
