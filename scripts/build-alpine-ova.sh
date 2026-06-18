@@ -96,7 +96,7 @@ apk add --no-cache \
   iproute2-tc \
   iptables \
   linux-firmware-none \
-  linux-lts \
+  linux-virt \
   nftables \
   openrc \
   openssh-server \
@@ -179,8 +179,8 @@ set timeout=2
 set default=0
 
 menuentry "Alpine dae gateway" {
-    linux /boot/vmlinuz-lts root=LABEL=alpine-root modules=sd-mod,virtio_blk,virtio_pci,ext4 quiet
-    initrd /boot/initramfs-lts
+    linux /boot/vmlinuz-virt root=LABEL=alpine-root modules=sd-mod,virtio_blk,virtio_pci,ext4 quiet
+    initrd /boot/initramfs-virt
 }
 EOF
 CHROOT

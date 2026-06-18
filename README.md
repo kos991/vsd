@@ -3,7 +3,7 @@
 This template builds a lightweight Alpine Linux gateway OVA with:
 
 - `dae` installed as a native OpenRC service.
-- Alpine `linux-lts` selected for eBPF support.
+- Alpine `linux-virt` selected for VMware-friendly eBPF/BTF support.
 - `mini-ppdns` installed as a native OpenRC DNS failover service.
 - No Docker, no SMbox, no Singbox, and no full PaoPaoDNS container stack.
 
@@ -137,7 +137,7 @@ dae-gateway-manager ebpf
 
 ## eBPF Notes
 
-dae relies on Linux eBPF for its transparent proxy and traffic splitting model. The image installs Alpine `linux-lts`, mounts `bpffs` at `/sys/fs/bpf`, mounts cgroup v2 at `/sys/fs/cgroup`, and installs a preflight service that probes BPF support before dae starts.
+dae relies on Linux eBPF for its transparent proxy and traffic splitting model. The image installs Alpine `linux-virt`, mounts `bpffs` at `/sys/fs/bpf`, mounts cgroup v2 at `/sys/fs/cgroup`, and installs a preflight service that probes BPF support before dae starts.
 
 The preflight checks:
 
@@ -147,7 +147,7 @@ The preflight checks:
 - `bpftool feature probe kernel` can run.
 - `ip_forward` is enabled.
 
-The OpenWrt `luci-app-daed-runfiles` packages include a `vmlinux-btf` package, which is the same class of requirement. This Alpine image handles it by using `linux-lts` with BTF support instead of installing OpenWrt APKs.
+The OpenWrt `luci-app-daed-runfiles` packages include a `vmlinux-btf` package, which is the same class of requirement. On Alpine v3.20, the `linux-lts` package has BPF support but does not enable kernel BTF. This image uses `linux-virt` because it enables `CONFIG_DEBUG_INFO_BTF`, which provides `/sys/kernel/btf/vmlinux` for dae.
 
 ## Default Network Behavior
 
