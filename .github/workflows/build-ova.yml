@@ -75,14 +75,18 @@ jobs:
 
       - name: Build OVA
         run: |
+          mkdir -p dist
           sudo --preserve-env=ALPINE_VERSION,DAED_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
-            bash scripts/build-alpine-ova.sh
+            bash scripts/build-alpine-ova.sh 2>&1 | tee dist/build.log
+          test ${PIPESTATUS[0]} -eq 0
 
       - name: Upload OVA artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dae-alpine-gateway-ova
           path: |
             dist/*.ova
             dist/*.sha256
+            dist/build.log
           retention-days: 14
