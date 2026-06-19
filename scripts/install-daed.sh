@@ -43,7 +43,7 @@ trap 'rm -rf "${tmp}"' EXIT
 curl -fsSL "${URL}" -o "${tmp}/${ASSET}"
 unzip -q "${tmp}/${ASSET}" -d "${tmp}"
 
-bin="$(find "${tmp}" -type f -name "daed-linux-${ASSET_ARCH}" -perm -u+x | head -1)"
+bin="$(find "${tmp}" -type f -name "daed-linux-${ASSET_ARCH}" | head -1)"
 if [ -z "${bin}" ]; then
   echo "daed binary not found in ${ASSET}." >&2
   exit 1

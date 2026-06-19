@@ -124,6 +124,7 @@ Assert-TextOrder 'scripts/build-alpine-ova.sh' 'chmod +x /etc/init.d/gateway-net
 Assert-FileDoesNotContain 'scripts/build-alpine-ova.sh' 'auto eth0\s+iface eth0 inet dhcp' 'Base network config must not assume eth0; the boot init service must persist the detected interface.'
 Assert-FileContains 'scripts/install-daed.sh' 'daeuniverse/daed' 'daed installer must download from daeuniverse/daed.'
 Assert-FileContains 'scripts/install-daed.sh' 'daed-linux-\$\{ASSET_ARCH\}\.zip' 'daed installer must use upstream daed binary release zips.'
+Assert-FileDoesNotContain 'scripts/install-daed.sh' '-perm -u\+x' 'daed installer must not depend on zip executable permission bits.'
 Assert-FileContains 'scripts/install-daed.sh' 'geoip\.dat' 'daed installer must install geoip.dat for split rules.'
 Assert-FileContains 'scripts/install-daed.sh' 'geosite\.dat' 'daed installer must install geosite.dat for split rules.'
 Assert-PathMissing 'scripts/install-dae.sh' 'Old dae installer must be removed from the daed-first image.'
