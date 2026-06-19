@@ -72,6 +72,7 @@ function Assert-PathMissing {
 
 Assert-FileContains '.github/workflows/build-ova.yml' 'workflow_dispatch' 'Workflow must support manual Run workflow.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'push:[\s\S]*branches:[\s\S]*- main' 'Workflow must auto-build when main is pushed.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'cancel-in-progress: true' 'Workflow must cancel stale in-progress OVA builds when a newer commit is pushed.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.alpine_version \|\| '3\.24'" 'Push-triggered builds must fall back to the default Alpine version.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.daed_version \|\| 'latest'" 'Push-triggered builds must fall back to the default daed version.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.disk_size \|\| '4G'" 'Push-triggered builds must fall back to the default disk size.'
@@ -97,6 +98,7 @@ Assert-FileContains 'scripts/build-alpine-ova.sh' 'iproute2-tc' 'Build script mu
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'adapter_type=lsilogic' 'VMDK conversion must use VMware-compatible lsilogic adapter metadata.'
 Assert-FileContains 'scripts/ci-build-ova.sh' 'dist/build\.log' 'CI build wrapper must preserve build logs for failed OVA builds.'
 Assert-FileContains 'scripts/ci-build-ova.sh' 'dist/build\.status' 'CI build wrapper must preserve the OVA build exit status.'
+Assert-FileContains 'scripts/ci-build-ova.sh' 'tee /tmp/ova-build\.log' 'CI build wrapper must stream OVA build logs while preserving them.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'RAW_CAPACITY_BYTES' 'OVF capacity must come from the raw disk size, not qemu-img output from the streamOptimized VMDK.'
 Assert-FileContains 'scripts/render-ovf.sh' 'CAPACITY_BYTES="\$\{6:\?capacity bytes required\}"' 'OVF renderer must require an explicit single capacity value.'
 Assert-FileContains 'scripts/render-ovf.sh' '\[\[ "\$\{CAPACITY_BYTES\}" =~ \^\[0-9\]\+\$ \]\]' 'OVF renderer must reject non-numeric or multi-line capacity values.'
