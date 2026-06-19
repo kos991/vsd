@@ -77,12 +77,13 @@ jobs:
         run: |
           set +e
           sudo --preserve-env=ALPINE_VERSION,DAED_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
-            bash scripts/build-alpine-ova.sh 2>&1 | tee /tmp/ova-build.log
+            bash scripts/build-alpine-ova.sh >/tmp/ova-build.log 2>&1
           status=${PIPESTATUS[0]}
-          set -e
+          cat /tmp/ova-build.log
           mkdir -p dist
           cp /tmp/ova-build.log dist/build.log
-          exit ${status}
+          echo "${status}" > dist/build.status
+          exit 0
 
       - name: Upload OVA artifact
         if: always()
@@ -93,4 +94,9 @@ jobs:
             dist/*.ova
             dist/*.sha256
             dist/build.log
+            dist/build.status
           retention-days: 14
+
+      - name: Check build result
+        run: |
+          test "$(cat dist/build.status)" -eq 0
