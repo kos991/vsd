@@ -128,5 +128,12 @@ jobs:
           retention-days: 14
 
       - name: Check build result
+        if: always()
         run: |
-          test "$(cat "${GITHUB_WORKSPACE}/dist/build.status")" -eq 0
+          status="$(cat "${GITHUB_WORKSPACE}/dist/build.status")"
+          if [ "${status}" -ne 0 ]; then
+            echo "OVA build failed with status ${status}."
+            echo "----- dist/build.log -----"
+            cat "${GITHUB_WORKSPACE}/dist/build.log"
+            exit "${status}"
+          fi

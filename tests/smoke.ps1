@@ -87,6 +87,7 @@ Assert-FileContains '.github/workflows/build-ova.yml' 'List artifact files' 'Wor
 Assert-FileContains '.github/workflows/build-ova.yml' 'shell: bash \{0\}' 'Workflow artifact listing step must disable the default bash -e wrapper.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'set \+e' 'Workflow artifact listing step must keep running even when diagnostics commands fail.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'exit 0' 'Workflow artifact listing step must not block artifact upload.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'cat "\$\{GITHUB_WORKSPACE\}/dist/build\.log"' 'Workflow must print the OVA build log when the build result is non-zero.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'linux-virt' 'Build script must install Alpine linux-virt for VMware eBPF/BTF support.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'vmlinuz-virt' 'GRUB must boot the BTF-enabled Alpine virtual kernel.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'initramfs-virt' 'GRUB must use the initramfs for the Alpine virtual kernel.'
