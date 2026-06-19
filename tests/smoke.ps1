@@ -99,6 +99,7 @@ Assert-FileContains 'scripts/build-alpine-ova.sh' 'adapter_type=lsilogic' 'VMDK 
 Assert-FileContains 'scripts/ci-build-ova.sh' 'dist/build\.log' 'CI build wrapper must preserve build logs for failed OVA builds.'
 Assert-FileContains 'scripts/ci-build-ova.sh' 'dist/build\.status' 'CI build wrapper must preserve the OVA build exit status.'
 Assert-FileContains 'scripts/ci-build-ova.sh' 'tee /tmp/ova-build\.log' 'CI build wrapper must stream OVA build logs while preserving them.'
+Assert-FileContains 'scripts/ci-build-ova.sh' 'PIPESTATUS' 'CI build wrapper must preserve the real OVA build exit status through tee.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'RAW_CAPACITY_BYTES' 'OVF capacity must come from the raw disk size, not qemu-img output from the streamOptimized VMDK.'
 Assert-FileContains 'scripts/render-ovf.sh' 'CAPACITY_BYTES="\$\{6:\?capacity bytes required\}"' 'OVF renderer must require an explicit single capacity value.'
 Assert-FileContains 'scripts/render-ovf.sh' '\[\[ "\$\{CAPACITY_BYTES\}" =~ \^\[0-9\]\+\$ \]\]' 'OVF renderer must reject non-numeric or multi-line capacity values.'
