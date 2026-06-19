@@ -56,7 +56,8 @@ jobs:
 
       - name: Prepare diagnostics artifact
         run: |
-          mkdir -p dist
+          DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          mkdir -p "${DIST_DIR}"
           {
             echo "run_id=${GITHUB_RUN_ID}"
             echo "sha=${GITHUB_SHA}"
@@ -64,9 +65,9 @@ jobs:
             echo "daed_version=${DAED_VERSION}"
             echo "mini_ppdns_ref=${MINI_PPDNS_REF}"
             echo "disk_size=${DISK_SIZE}"
-          } >dist/ci-context.txt
-          echo 125 >dist/build.status
-          echo "Build did not start yet. Check earlier workflow steps." >dist/build.log
+          } >"${DIST_DIR}/ci-context.txt"
+          echo 125 >"${DIST_DIR}/build.status"
+          echo "Build did not start yet. Check earlier workflow steps." >"${DIST_DIR}/build.log"
 
       - name: Install build tools
         run: |
@@ -90,9 +91,11 @@ jobs:
       - name: Run template smoke tests
         shell: bash
         run: |
+          DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          mkdir -p "${DIST_DIR}"
           status=0
-          pwsh -NoProfile -ExecutionPolicy Bypass -File ./tests/smoke.ps1 >dist/smoke.log 2>&1 || status=$?
-          cat dist/smoke.log
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./tests/smoke.ps1 >"${DIST_DIR}/smoke.log" 2>&1 || status=$?
+          cat "${DIST_DIR}/smoke.log"
           exit "${status}"
 
       - name: Build OVA
@@ -101,17 +104,26 @@ jobs:
       - name: List artifact files
         if: always()
         run: |
-          find dist -maxdepth 2 -type f -print -exec ls -lh {} \; || true
+          DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          mkdir -p "${DIST_DIR}"
+          if [ ! -f "${DIST_DIR}/build.status" ]; then
+            echo 124 >"${DIST_DIR}/build.status"
+            echo "Build status was missing before artifact upload." >"${DIST_DIR}/build.log"
+          fi
+          {
+            echo "### Artifact files"
+            find "${DIST_DIR}" -maxdepth 2 -type f -print -exec ls -lh {} \; || true
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload OVA artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: daed-alpine-gateway-ova
-          path: dist/
+          path: ${{ github.workspace }}/dist
           if-no-files-found: error
           retention-days: 14
 
       - name: Check build result
         run: |
-          test "$(cat dist/build.status)" -eq 0
+          test "$(cat "${GITHUB_WORKSPACE}/dist/build.status")" -eq 0

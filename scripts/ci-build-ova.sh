@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
 set -u
 
-mkdir -p dist
+WORKSPACE="${GITHUB_WORKSPACE:-$(pwd)}"
+DIST_DIR="${WORKSPACE}/dist"
+LOG_FILE="/tmp/ova-build.log"
+
+cd "${WORKSPACE}"
+mkdir -p "${DIST_DIR}"
 status=0
 
 sudo --preserve-env=ALPINE_VERSION,DAED_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
-  bash scripts/build-alpine-ova.sh 2>&1 | tee /tmp/ova-build.log
+  bash scripts/build-alpine-ova.sh 2>&1 | tee "${LOG_FILE}"
 pipeline_status=("${PIPESTATUS[@]}")
-if [ "${pipeline_status[0]}" -ne 0 ]; then
-  status="${pipeline_status[0]}"
-elif [ "${pipeline_status[1]}" -ne 0 ]; then
-  status="${pipeline_status[1]}"
+build_status="${pipeline_status[0]:-1}"
+tee_status="${pipeline_status[1]:-0}"
+if [ "${build_status}" -ne 0 ]; then
+  status="${build_status}"
+elif [ "${tee_status}" -ne 0 ]; then
+  status="${tee_status}"
 fi
 
-mkdir -p dist
-cp /tmp/ova-build.log dist/build.log || echo 'build log was not created' >dist/build.log
-echo "${status}" >dist/build.status
-ls -la dist
+mkdir -p "${DIST_DIR}"
+cp "${LOG_FILE}" "${DIST_DIR}/build.log" || echo 'build log was not created' >"${DIST_DIR}/build.log"
+echo "${status}" >"${DIST_DIR}/build.status"
+ls -la "${DIST_DIR}"
 
 exit 0
