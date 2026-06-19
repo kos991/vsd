@@ -50,6 +50,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Prepare diagnostics artifact
+        run: |
+          mkdir -p dist
+          {
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "sha=${GITHUB_SHA}"
+            echo "alpine_version=${ALPINE_VERSION}"
+            echo "daed_version=${DAED_VERSION}"
+            echo "mini_ppdns_ref=${MINI_PPDNS_REF}"
+            echo "disk_size=${DISK_SIZE}"
+          } >dist/ci-context.txt
+          echo 125 >dist/build.status
+          echo "Build did not start yet. Check earlier workflow steps." >dist/build.log
+
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -70,11 +84,20 @@ jobs:
             xz-utils
 
       - name: Run template smoke tests
-        shell: pwsh
-        run: ./tests/smoke.ps1
+        shell: bash
+        run: |
+          status=0
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./tests/smoke.ps1 >dist/smoke.log 2>&1 || status=$?
+          cat dist/smoke.log
+          exit "${status}"
 
       - name: Build OVA
         run: bash scripts/ci-build-ova.sh
+
+      - name: List artifact files
+        if: always()
+        run: |
+          find dist -maxdepth 2 -type f -print -exec ls -lh {} \; || true
 
       - name: Upload OVA artifact
         if: always()
