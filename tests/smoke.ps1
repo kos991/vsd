@@ -76,6 +76,8 @@ Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.alpine_version \|
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.daed_version \|\| 'latest'" 'Push-triggered builds must fall back to the default daed version.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.disk_size \|\| '4G'" 'Push-triggered builds must fall back to the default disk size.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'actions/upload-artifact@v4' 'Workflow must upload OVA artifact.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'daed-alpine-gateway-ova' 'Workflow must upload the daed OVA artifact.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'path: dist/' 'Workflow must upload the whole dist directory so failure logs are included.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'linux-virt' 'Build script must install Alpine linux-virt for VMware eBPF/BTF support.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'vmlinuz-virt' 'GRUB must boot the BTF-enabled Alpine virtual kernel.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'initramfs-virt' 'GRUB must use the initramfs for the Alpine virtual kernel.'

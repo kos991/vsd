@@ -17,7 +17,7 @@ The intended workflow is simple: push this repository to GitHub, open **Actions*
 2. Open the repository's **Actions** tab.
 3. Select **Build Alpine gateway OVA**.
 4. Click **Run workflow**.
-5. Download the `dae-alpine-gateway-ova` artifact after the workflow finishes.
+5. Download the `daed-alpine-gateway-ova` artifact after the workflow finishes.
 
 Workflow inputs:
 
