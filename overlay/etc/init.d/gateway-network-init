@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+
+description="Initialize VMware-friendly gateway networking"
+command="/usr/local/sbin/gateway-network-init"
+command_background="no"
+
+depend() {
+    need localmount
+    after modules
+    before networking
+}
+
+start() {
+    ebegin "Initializing gateway network modules"
+    ${command}
+    eend $?
+}

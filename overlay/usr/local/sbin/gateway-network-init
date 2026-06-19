@@ -1,0 +1,81 @@
+#!/bin/sh
+set -eu
+
+log() {
+    printf '%s\n' "$*"
+}
+
+load_net_modules() {
+    for module in vmxnet3 e1000 e1000e virtio_net; do
+        modprobe "$module" >/dev/null 2>&1 || true
+    done
+}
+
+first_real_iface() {
+    for path in /sys/class/net/*; do
+        iface="${path##*/}"
+        [ "$iface" = "lo" ] && continue
+        [ -d "$path" ] || continue
+        printf '%s\n' "$iface"
+        return 0
+    done
+    return 1
+}
+
+iface_has_ipv4() {
+    ip -4 addr show dev "$1" 2>/dev/null | grep -q 'inet '
+}
+
+iface_in_interfaces() {
+    grep -Eq "^[[:space:]]*(auto|allow-hotplug)[[:space:]].*(^|[[:space:]])$1($|[[:space:]])" /etc/network/interfaces 2>/dev/null \
+        || grep -Eq "^[[:space:]]*iface[[:space:]]+$1[[:space:]]" /etc/network/interfaces 2>/dev/null
+}
+
+configure_iface_dhcp() {
+    iface="$1"
+
+    if iface_in_interfaces "$iface"; then
+        return 0
+    fi
+
+    cat >>/etc/network/interfaces <<EOF
+
+auto $iface
+iface $iface inet dhcp
+EOF
+}
+
+start_dhcp() {
+    iface="$1"
+    ip link set "$iface" up >/dev/null 2>&1 || true
+    if command -v udhcpc >/dev/null 2>&1; then
+        udhcpc -i "$iface" -q -n -t 5 >/dev/null 2>&1 || return 1
+    else
+        return 1
+    fi
+}
+
+main() {
+    load_net_modules
+
+    iface="$(first_real_iface || true)"
+    if [ -z "$iface" ]; then
+        log "No non-loopback network interface found."
+        return 0
+    fi
+
+    if iface_has_ipv4 "$iface"; then
+        log "Network ready on $iface."
+        return 0
+    fi
+
+    configure_iface_dhcp "$iface"
+
+    if start_dhcp "$iface"; then
+        log "DHCP lease acquired on $iface."
+    else
+        log "DHCP failed on $iface."
+    fi
+}
+
+main "$@"

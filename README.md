@@ -51,7 +51,7 @@ Inside the generated VM:
 Initial access:
 
 - Console or SSH login: `root / dae123456`
-- SSH uses DHCP on `eth0`, port `22`.
+- SSH uses DHCP on the detected non-loopback network interface, port `22`.
 - Change the root password after first login:
 
 ```sh
@@ -151,7 +151,7 @@ The OpenWrt `luci-app-daed-runfiles` packages include a `vmlinux-btf` package, w
 
 ## Default Network Behavior
 
-The image uses DHCP on `eth0` by default. It enables IPv4 and IPv6 forwarding, but dae is not enabled at boot because the sample config does not include your private proxy nodes. You should import the OVA, verify network access, then adjust `/etc/dae/config.dae` for your LAN and proxy nodes.
+The image detects the first non-loopback network interface at boot, persists DHCP for that interface, and then starts OpenRC networking. It enables IPv4 and IPv6 forwarding, but dae is not enabled at boot because the sample config does not include your private proxy nodes. You should import the OVA, verify network access, then adjust `/etc/dae/config.dae` for your LAN and proxy nodes.
 
 `mini-ppdns` listens on port 53 and forwards to the DNS upstreams configured in `/etc/mini-ppdns.ini`.
 

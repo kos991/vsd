@@ -90,6 +90,7 @@ apk add --no-cache \
   ca-certificates \
   curl \
   e2fsprogs \
+  ethtool \
   grub \
   grub-bios \
   iproute2 \
@@ -99,8 +100,10 @@ apk add --no-cache \
   linux-virt \
   nftables \
   openrc \
+  open-vm-tools \
+  open-vm-tools-guestinfo \
   openssh-server \
-  qemu-guest-agent \
+  pciutils \
   tar \
   xz
 
@@ -119,7 +122,7 @@ rc-update add sysctl boot
 rc-update add hostname boot
 rc-update add bootmisc boot
 rc-update add networking boot
-rc-update add qemu-guest-agent default
+rc-update add open-vm-tools default
 rc-update add sshd default
 rc-update add local default
 CHROOT
@@ -135,6 +138,7 @@ DAE_VERSION='${DAE_VERSION}' /tmp/install-dae.sh
 MINI_PPDNS_REF='${MINI_PPDNS_REF}' /tmp/install-mini-ppdns.sh
 rm -f /tmp/install-dae.sh /tmp/install-mini-ppdns.sh
 chmod +x /usr/local/sbin/check-ebpf /usr/local/sbin/dae-gateway-manager
+chmod +x /usr/local/sbin/gateway-network-init
 chmod +x /usr/local/sbin/gateway
 chmod +x /usr/local/sbin/dae-manager /usr/local/sbin/mini-ppdns-manager
 chmod +x /usr/local/sbin/qos-manager
@@ -145,7 +149,9 @@ MINI_PPDNS_REF='${MINI_PPDNS_REF}'
 IMAGE_NAME='${IMAGE_NAME}'
 EOF
 chmod +x /etc/init.d/check-ebpf /etc/init.d/dae /etc/init.d/mini-ppdns
+chmod +x /etc/init.d/gateway-network-init
 chmod +x /etc/init.d/dae-qos
+rc-update add gateway-network-init boot
 rc-update add check-ebpf default
 rc-update add mini-ppdns default
 rc-update add dae-qos default
@@ -162,9 +168,13 @@ EOF
   cat >"${ROOTFS_DIR}/etc/network/interfaces" <<'EOF'
 auto lo
 iface lo inet loopback
+EOF
 
-auto eth0
-iface eth0 inet dhcp
+  cat >"${ROOTFS_DIR}/etc/modules-load.d/dae-gateway.conf" <<'EOF'
+vmxnet3
+e1000
+e1000e
+virtio_net
 EOF
 
   cat >"${ROOTFS_DIR}/etc/sysctl.d/90-dae-gateway.conf" <<'EOF'

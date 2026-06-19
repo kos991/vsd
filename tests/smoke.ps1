@@ -22,6 +22,43 @@ function Assert-FileContains {
     }
 }
 
+function Assert-TextOrder {
+    param(
+        [string]$Path,
+        [string]$First,
+        [string]$Second,
+        [string]$Message
+    )
+    $full = Join-Path $Root $Path
+    if (-not (Test-Path -LiteralPath $full)) {
+        $failures.Add("Missing file: $Path")
+        return
+    }
+    $text = Get-Content -LiteralPath $full -Raw
+    $firstIndex = $text.IndexOf($First)
+    $secondIndex = $text.IndexOf($Second)
+    if ($firstIndex -lt 0 -or $secondIndex -lt 0 -or $firstIndex -ge $secondIndex) {
+        $failures.Add($Message)
+    }
+}
+
+function Assert-FileDoesNotContain {
+    param(
+        [string]$Path,
+        [string]$Pattern,
+        [string]$Message
+    )
+    $full = Join-Path $Root $Path
+    if (-not (Test-Path -LiteralPath $full)) {
+        $failures.Add("Missing file: $Path")
+        return
+    }
+    $text = Get-Content -LiteralPath $full -Raw
+    if ($text -match $Pattern) {
+        $failures.Add($Message)
+    }
+}
+
 Assert-FileContains '.github/workflows/build-ova.yml' 'workflow_dispatch' 'Workflow must support manual Run workflow.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'push:[\s\S]*branches:[\s\S]*- main' 'Workflow must auto-build when main is pushed.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.alpine_version \|\| '3\.20'" 'Push-triggered builds must fall back to the default Alpine version.'
@@ -45,13 +82,21 @@ Assert-FileContains 'scripts/render-ovf.sh' '\[\[ "\$\{CAPACITY_BYTES\}" =~ \^\[
 Assert-FileContains 'scripts/render-ovf.sh' 'ovf:capacity="\$\{CAPACITY_BYTES\}"' 'OVF disk capacity must be rendered from the validated explicit capacity value.'
 Assert-FileContains 'scripts/render-ovf.sh' '<rasd:ElementName>Hard disk 1</rasd:ElementName>[\s\S]*<rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>[\s\S]*<rasd:InstanceID>3</rasd:InstanceID>[\s\S]*<rasd:Parent>5</rasd:Parent>[\s\S]*<rasd:ResourceType>17</rasd:ResourceType>' 'Hard disk OVF item must keep RASD elements in schema order for strict importers.'
 Assert-FileContains 'scripts/render-ovf.sh' '<rasd:ResourceSubType>lsilogic</rasd:ResourceSubType>' 'OVF SCSI controller must use VMware-compatible lsilogic subtype.'
-Assert-FileContains 'scripts/render-ovf.sh' '<rasd:ResourceSubType>E1000</rasd:ResourceSubType>' 'OVF network adapter must use broad-compatible E1000 subtype.'
+Assert-FileContains 'scripts/render-ovf.sh' '<rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>' 'OVF network adapter must use VMware-native VmxNet3 subtype for ESXi.'
+Assert-FileContains 'scripts/render-ovf.sh' '<rasd:Description>VmxNet3 ethernet adapter</rasd:Description>' 'OVF network adapter description must match the VmxNet3 subtype.'
+Assert-FileContains 'scripts/build-alpine-ova.sh' 'open-vm-tools' 'Build script must install VMware guest tools for ESXi.'
+Assert-FileContains 'scripts/build-alpine-ova.sh' 'vmxnet3' 'Build script must preload VMware VmxNet3 network support.'
+Assert-TextOrder 'scripts/build-alpine-ova.sh' 'chmod +x /etc/init.d/gateway-network-init' 'rc-update add gateway-network-init boot' 'Network init service must be registered after the overlay init script exists.'
+Assert-FileDoesNotContain 'scripts/build-alpine-ova.sh' 'auto eth0\s+iface eth0 inet dhcp' 'Base network config must not assume eth0; the boot init service must persist the detected interface.'
 Assert-FileContains 'scripts/install-dae.sh' 'daeuniverse/dae' 'dae installer must download from daeuniverse/dae.'
 Assert-FileContains 'scripts/install-mini-ppdns.sh' 'kkkgo/mini-ppdns' 'mini-ppdns installer must download from kkkgo/mini-ppdns.'
 Assert-FileContains 'overlay/etc/init.d/dae' 'check-ebpf' 'dae OpenRC service must depend on eBPF preflight.'
 Assert-FileContains 'overlay/etc/init.d/mini-ppdns' 'mini-ppdns' 'mini-ppdns OpenRC service must exist.'
 Assert-FileContains 'overlay/etc/init.d/dae-qos' 'qos-manager' 'QoS OpenRC service must call qos-manager.'
 Assert-FileContains 'overlay/etc/init.d/dae-qos' 'command_args="apply"' 'QoS OpenRC service must apply configured CAKE/IFB rules.'
+Assert-FileContains 'overlay/usr/local/sbin/gateway-network-init' 'configure_iface_dhcp' 'Network init must persist DHCP config for the detected ESXi interface.'
+Assert-FileContains 'overlay/usr/local/sbin/gateway-network-init' 'auto \$iface' 'Network init must write the detected interface name instead of assuming eth0.'
+Assert-FileContains 'overlay/usr/local/sbin/gateway-network-init' 'iface \$iface inet dhcp' 'Network init must configure DHCP for the detected interface before OpenRC networking starts.'
 Assert-FileContains 'overlay/usr/local/sbin/gateway' '1\) dae manager' 'gateway menu must route to dae manager.'
 Assert-FileContains 'overlay/usr/local/sbin/gateway' '2\) mini-ppdns manager' 'gateway menu must route to mini-ppdns manager.'
 Assert-FileContains 'overlay/usr/local/sbin/gateway' '3\) eBPF check' 'gateway menu must provide a numeric eBPF shortcut.'
