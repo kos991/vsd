@@ -75,14 +75,14 @@ jobs:
 
       - name: Build OVA
         run: |
-          set +e
+          status=0
           sudo --preserve-env=ALPINE_VERSION,DAED_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
-            bash scripts/build-alpine-ova.sh >/tmp/ova-build.log 2>&1
-          status=${PIPESTATUS[0]}
-          cat /tmp/ova-build.log
+            bash scripts/build-alpine-ova.sh >/tmp/ova-build.log 2>&1 || status=$?
+          cat /tmp/ova-build.log || true
           mkdir -p dist
-          cp /tmp/ova-build.log dist/build.log
+          cp /tmp/ova-build.log dist/build.log || echo 'build log was not created' > dist/build.log
           echo "${status}" > dist/build.status
+          ls -la dist
           exit 0
 
       - name: Upload OVA artifact
