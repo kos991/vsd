@@ -1,158 +1,124 @@
 # Progress and Build Notes
 
-## Current Goal
+## Current Target
 
-Create a GitHub Actions template that can generate a generic OVA gateway image with Alpine Linux, dae, and mini-ppdns.
+Build a GitHub Actions template that generates a generic Alpine Linux OVA gateway image with:
 
-Repository target mentioned by the user: `https://github.com/kos991/zabte.git`.
+- Alpine `linux-virt`
+- `daed` from `daeuniverse/daed`
+- `geoip.dat` and `geosite.dat`
+- `mini-ppdns`
+- OpenRC services
+- blocking firstboot console setup
+- BBR/fq TCP optimization
+- one-arm same-LAN gateway sysctl
 
-At the time of checking, `git ls-remote https://github.com/kos991/zabte.git HEAD refs/heads/*` returned no refs, so the remote appears empty or without a default branch.
-
-## Current Implementation
-
-The current workspace contains a self-contained template, not an initialized git repository.
-
-Implemented files:
+## Key Files
 
 - `.github/workflows/build-ova.yml`
-- `README.md`
-- `docs/design.md`
-- `docs/progress-and-build.md`
 - `scripts/build-alpine-ova.sh`
-- `scripts/install-dae.sh`
+- `scripts/install-daed.sh`
 - `scripts/install-mini-ppdns.sh`
 - `scripts/render-ovf.sh`
-- `overlay/etc/dae/config.dae`
-- `overlay/etc/mini-ppdns.ini`
-- `overlay/etc/init.d/check-ebpf`
-- `overlay/etc/init.d/dae`
+- `overlay/etc/init.d/daed`
+- `overlay/etc/init.d/daed-firstboot`
 - `overlay/etc/init.d/mini-ppdns`
-- `overlay/usr/local/sbin/check-ebpf`
-- `overlay/usr/local/sbin/dae-gateway-manager`
-- `overlay/etc/motd`
-- `tests/smoke.ps1`
+- `overlay/etc/init.d/check-ebpf`
+- `overlay/usr/local/sbin/daed-firstboot`
+- `overlay/usr/local/sbin/daed-manager`
+- `overlay/usr/local/sbin/mini-ppdns-manager`
+- `overlay/usr/local/sbin/gateway-network-init`
+- `overlay/usr/local/sbin/gateway`
 
-## Design Decisions
+## Kernel Decision
 
-### Base OS
+Use Alpine `linux-virt`, not `linux-lts`, because dae/daed requires eBPF and BTF support. Alpine `linux-virt` provides:
 
-Use Alpine Linux with `linux-lts`.
+- `CONFIG_BPF_SYSCALL=y`
+- `CONFIG_BPF_JIT=y`
+- `CONFIG_CGROUP_BPF=y`
+- `CONFIG_DEBUG_INFO_BTF=y`
+- `CONFIG_TCP_CONG_BBR=m`
+- `CONFIG_NET_SCH_FQ=m`
+- `CONFIG_NETFILTER_XT_TARGET_TPROXY=m`
+- NAT/MASQUERADE support
+- VMware/VirtIO network modules
 
-Reason: dae relies on Linux eBPF. Alpine `linux-lts` has the right BPF/BTF direction for a small VM appliance, while remaining lightweight.
+The stable Alpine OVA uses standard BBR plus `fq`. BBR3 is intentionally left for a separate Debian 13 + XanMod experiment.
 
-### Proxy Engine
+## daed
 
-Use `dae` from `daeuniverse/dae` release tarballs.
+`scripts/install-daed.sh` downloads the latest main `daed` release that contains a `daed-linux-<arch>.zip` asset. The installer copies:
 
-The installer currently downloads:
+- `daed-linux-x86_64` to `/usr/bin/daed`
+- `geoip.dat` to `/etc/daed/geoip.dat` and `/usr/share/daed/geoip.dat`
+- `geosite.dat` to `/etc/daed/geosite.dat` and `/usr/share/daed/geosite.dat`
 
-- `https://github.com/daeuniverse/dae/releases/latest/download/dae-linux-x86_64.tar.xz` when `DAE_VERSION=latest`
-- `https://github.com/daeuniverse/dae/releases/download/<tag>/dae-linux-x86_64.tar.xz` when a tag is specified
+The OpenRC service runs:
 
-### DNS Component
+```sh
+/usr/bin/daed run -c /etc/daed/
+```
 
-Use `mini-ppdns`, not full PaoPaoDNS.
+The dashboard listens on:
 
-Reason: full PaoPaoDNS is a Docker image and combines unbound, redis, mosdns, dnscrypt-proxy, data update scripts, and multiple generated configs. `mini-ppdns` is a single native binary derived from PaoPaoDNS and fits the non-Docker Alpine appliance better.
+```text
+http://<gateway-ip>:2023
+```
 
-### SMbox Reference
+## Firstboot
 
-SMbox documentation was used only as an appliance UX reference: Alpine base, one-command management, clear status/log commands, and lightweight VM deployment. SMbox/Singbox is not installed.
+The build locks root with `passwd -l root`; no default password is baked into the image.
 
-### luci-app-daed-runfiles Reference
+`daed-firstboot` runs from OpenRC on the first boot and asks for:
 
-`wkccd/luci-app-daed-runfiles` was inspected as an OpenWrt/daed reference. Its `.run` package contains OpenWrt APKs:
+- root password
+- daed admin username
+- daed admin password
+- TCP optimization choice
+- bandwidth, latency, and memory for TCP buffer sizing
 
-- `daed`
-- `luci-app-daed`
-- `v2ray-geoip`
-- `v2ray-geosite`
-- `vmlinux-btf`
+The script validates daed passwords with the upstream rule:
 
-Those APKs are not installed because they target OpenWrt package ABI, not Alpine. The useful points were carried over:
+```text
+too weak password; should contain numbers and letters, and no less than 6 in length
+```
 
-- BTF is checked through `/sys/kernel/btf/vmlinux`.
-- dae config uses geoip/geosite style split rules.
+It then starts daed, waits for `http://127.0.0.1:2023/graphql`, and tries to run the `createUser` mutation. If the API is not ready, the saved `/etc/daed/firstboot-admin.env` file remains as a recovery hint.
 
-## Current Split Routing Template
+## Network
 
-`overlay/etc/dae/config.dae` currently provides a daed-style baseline:
+`gateway-network-init` detects the first physical interface and ignores virtual interfaces:
 
-- `mini-ppdns` traffic uses `must_direct` to avoid DNS loops.
-- NetworkManager, multicast/broadcast, private IPs, CN IPs, and CN domains go direct.
-- `geosite:geolocation-!cn` goes to the `proxy` group.
-- DNS requests for CN domains use AliDNS.
-- Other DNS requests use Google DNS.
-- Non-CN domains returning private IPs are retried with Google DNS.
-- UDP/443 is blocked by default to reduce QUIC/H3 overhead on small gateways.
-- Fallback traffic goes to `proxy` after the user adds nodes or subscriptions.
+- `dae0`
+- `docker*`
+- `veth*`
+- `br-*`
+- `tun*`
+- `tap*`
+- `wg*`
+- `zt*`
+- `ifb*`
+- `dummy*`
 
-dae is installed but not enabled at boot until `/etc/dae/config.dae` is customized. `mini-ppdns` is enabled by default.
+It persists DHCP for the detected interface, enables forwarding, disables `rp_filter`, disables redirects, and adds a NAT masquerade rule for same-LAN gateway use.
 
-## GitHub Actions Build Flow
+## Local Verification
 
-Workflow: `.github/workflows/build-ova.yml`
-
-Manual inputs:
-
-- `alpine_version`, default `3.20`
-- `dae_version`, default `latest`
-- `mini_ppdns_ref`, default `release`
-- `disk_size`, default `4G`
-- `memory_mb`, default `1024`
-- `cpu_count`, default `1`
-
-Build steps:
-
-1. Check out repository.
-2. Install Linux build tools.
-3. Run `tests/smoke.ps1`.
-4. Run `scripts/build-alpine-ova.sh` as root.
-5. Upload `dist/*.ova` and `dist/*.sha256` through `actions/upload-artifact@v4`.
-
-The OVA build is designed for `ubuntu-latest` because it needs root, loop devices, mount, chroot, GRUB, and qemu-img.
-
-## Verification Run Locally
-
-Fresh checks run in this workspace:
+Run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tests/smoke.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\smoke.ps1
 ```
 
-Result: `Smoke tests passed.`
+Run shell syntax checks:
 
-Shell syntax checks:
-
-```sh
+```powershell
 bash -n scripts/build-alpine-ova.sh
-bash -n scripts/install-dae.sh
-bash -n scripts/install-mini-ppdns.sh
-bash -n scripts/render-ovf.sh
-bash -n overlay/usr/local/sbin/check-ebpf
-bash -n overlay/usr/local/sbin/dae-gateway-manager
+bash -n scripts/install-daed.sh
+bash -n overlay/usr/local/sbin/daed-firstboot
+bash -n overlay/usr/local/sbin/daed-manager
+bash -n overlay/usr/local/sbin/gateway-network-init
 ```
 
-Result: exit code `0`.
-
-The full OVA build was not run locally because the current workspace is on Windows and the build requires Linux loop devices and chroot.
-
-## Next Steps
-
-1. Initialize or clone `https://github.com/kos991/zabte.git` once the remote has a branch, or initialize the current directory and push it there.
-2. Run the GitHub Actions workflow once in the target repository.
-3. Inspect the workflow log for Alpine package or GRUB issues.
-4. Import the generated OVA into the target hypervisor.
-5. Boot the VM and run:
-
-```sh
-dae-gateway-manager ebpf
-dae-gateway-manager status
-```
-
-6. Edit `/etc/dae/config.dae`, add nodes/subscriptions, then enable dae:
-
-```sh
-rc-update add dae default
-rc-service dae start
-```
+Full OVA validation is performed by GitHub Actions on `ubuntu-latest` because it needs loop devices, chroot, GRUB, qemu-img, and OVA packaging tools.

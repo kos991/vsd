@@ -17,7 +17,7 @@ case "${1:-}" in
         printf '\nGateway overview\n\n'
         rc-service check-ebpf status || true
         rc-service mini-ppdns status || true
-        rc-service dae status || true
+        rc-service daed status || true
         ;;
     ebpf)
         /usr/local/sbin/check-ebpf

@@ -9,9 +9,9 @@ on:
       alpine_version:
         description: Alpine release branch
         required: true
-        default: '3.20'
-      dae_version:
-        description: dae release tag, or latest
+        default: '3.24'
+      daed_version:
+        description: daed release tag, or latest
         required: true
         default: latest
       mini_ppdns_ref:
@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      ALPINE_VERSION: ${{ inputs.alpine_version || '3.20' }}
-      DAE_VERSION: ${{ inputs.dae_version || 'latest' }}
+      ALPINE_VERSION: ${{ inputs.alpine_version || '3.24' }}
+      DAED_VERSION: ${{ inputs.daed_version || 'latest' }}
       MINI_PPDNS_REF: ${{ inputs.mini_ppdns_ref || 'release' }}
       DISK_SIZE: ${{ inputs.disk_size || '4G' }}
       MEMORY_MB: ${{ inputs.memory_mb || '1024' }}
@@ -75,7 +75,7 @@ jobs:
 
       - name: Build OVA
         run: |
-          sudo --preserve-env=ALPINE_VERSION,DAE_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
+          sudo --preserve-env=ALPINE_VERSION,DAED_VERSION,MINI_PPDNS_REF,DISK_SIZE,MEMORY_MB,CPU_COUNT \
             bash scripts/build-alpine-ova.sh
 
       - name: Upload OVA artifact

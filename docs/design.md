@@ -1,8 +1,8 @@
-# Design: Alpine dae Gateway OVA
+# Design: Alpine daed Gateway OVA
 
 ## Goal
 
-Build a reproducible GitHub Actions template that emits a generic OVA image containing Alpine Linux, dae, and mini-ppdns.
+Build a reproducible GitHub Actions template that emits a generic OVA image containing Alpine Linux, daed, and mini-ppdns.
 
 ## Non-goals
 
@@ -13,28 +13,32 @@ Build a reproducible GitHub Actions template that emits a generic OVA image cont
 
 ## Base System
 
-The image is assembled from Alpine minirootfs on an ext4 disk image. The build script installs `linux-lts`, OpenRC, bootloader components, networking tools, BPF tooling, and virtual-machine guest utilities. The final disk is converted to VMDK and wrapped in OVF/OVA metadata.
+The image is assembled from Alpine minirootfs on an ext4 disk image. The build script installs `linux-virt`, OpenRC, bootloader components, networking tools, BPF tooling, and virtual-machine guest utilities. The final disk is converted to VMDK and wrapped in OVF/OVA metadata.
 
 ## Kernel and eBPF
 
-dae depends on Linux eBPF. The image uses Alpine `linux-lts` and configures:
+daed depends on dae's Linux eBPF transparent proxy model. The image uses Alpine `linux-virt` and configures:
 
 - `bpffs /sys/fs/bpf bpf defaults 0 0`
 - `cgroup2 /sys/fs/cgroup cgroup2 defaults 0 0`
 - `net.ipv4.ip_forward=1`
 - `net.ipv6.conf.all.forwarding=1`
 
-An OpenRC `check-ebpf` service runs before dae and fails clearly when the kernel or mounts do not satisfy the requirements.
+An OpenRC `check-ebpf` service runs before daed and fails clearly when the kernel or mounts do not satisfy the requirements.
 
 The `wkccd/luci-app-daed-runfiles` release packages were used as a reference point. They package OpenWrt-specific APK files, including `daed`, LuCI integration, geo data, and `vmlinux-btf`. Those packages are not installed in this Alpine appliance because they target OpenWrt 24/25 package ABI, but the BTF requirement is reflected in the Alpine preflight checks.
 
-The same release also shows the expected daed runtime shape: daed plus `v2ray-geoip` and `v2ray-geosite`. The Alpine template mirrors that split strategy in `/etc/dae/config.dae`: private and CN traffic direct, geolocation-!cn through proxy, DNS request/response routing separated, and `mini-ppdns` marked `must_direct` to avoid DNS loops.
+The same release also shows the expected daed runtime shape: daed plus `v2ray-geoip` and `v2ray-geosite`. The Alpine template installs `geoip.dat` and `geosite.dat` into `/etc/daed` so the dashboard can apply split rules without a missing data-file failure.
 
-## dae
+## daed
 
-dae is downloaded from `daeuniverse/dae` releases. For `x86_64`, the build uses `dae-linux-x86_64.tar.xz`. The installer accepts `latest` through GitHub's `releases/latest/download` redirect, or a specific tag through the normal release download URL.
+daed is downloaded from `daeuniverse/daed` releases. For `x86_64`, the build uses `daed-linux-x86_64.zip`. The installer resolves `latest` through the GitHub release API because daed publishes component releases as well as main program releases.
 
-dae runs as an OpenRC supervised daemon with logs in `/var/log/dae/dae.log`. It is installed but not enabled at boot by default because the template cannot know the user's private nodes and routing policy.
+daed runs as an OpenRC supervised daemon with logs in `/var/log/daed/daed.log`. It starts by default after firstboot creates credentials and gateway sysctl settings.
+
+## firstboot
+
+The image locks root during build and runs a blocking console firstboot wizard on the first VM boot. The wizard sets the root password, stores a daed admin credential hint, writes one-arm gateway sysctl values, and optionally generates BBR/fq TCP tuning based on bandwidth, latency, and memory.
 
 ## mini-ppdns
 

@@ -1,15 +1,15 @@
 #!/bin/sh
 set -eu
 
-service_name="dae"
-binary_path="/usr/sbin/dae"
-service_path="/etc/init.d/dae"
-config_path="/etc/dae/config.dae"
-log_files="/var/log/dae/dae.log /var/log/dae/dae.err"
+service_name="daed"
+binary_path="/usr/bin/daed"
+service_path="/etc/init.d/daed"
+config_path="/etc/daed"
+log_files="/var/log/daed/daed.log /var/log/daed/daed.err"
 
 is_installed() { [ -x "$binary_path" ]; }
 has_service() { [ -x "$service_path" ]; }
-has_config() { [ -f "$config_path" ]; }
+has_config() { [ -d "$config_path" ]; }
 
 version_text() {
     if is_installed; then
@@ -31,19 +31,30 @@ boot_state() {
     rc-update show default 2>/dev/null | grep -q "[[:space:]]${service_name}[[:space:]]" && printf 'enabled' || printf 'disabled'
 }
 
-latest_dae_tag() {
-    curl -fsSL https://api.github.com/repos/daeuniverse/dae/releases/latest \
-        | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-        | head -1
+latest_daed_tag() {
+    curl -fsSL 'https://api.github.com/repos/daeuniverse/daed/releases?per_page=20' \
+        | awk '
+          /"tag_name":/ {
+            tag=$0
+            sub(/^.*"tag_name":[[:space:]]*"/, "", tag)
+            sub(/".*$/, "", tag)
+          }
+          /"name":[[:space:]]*"daed-linux-/ {
+            if (tag ~ /^v[0-9]/) {
+              print tag
+              exit
+            }
+          }'
 }
 
 status_view() {
-    printf '\ndae status\n\n'
+    printf '\ndaed status\n\n'
     is_installed && printf 'Install: installed\n' || printf 'Install: missing\n'
     printf 'Version: %s\n' "$(version_text)"
     printf 'Service: %s\n' "$(service_state)"
     printf 'Boot: %s\n' "$(boot_state)"
     has_config && printf 'Config: ready\n' || printf 'Config: missing\n'
+    printf 'Dashboard: http://<gateway-ip>:2023\n'
 }
 
 details_view() {
@@ -51,7 +62,9 @@ details_view() {
     printf '\nDetails\n'
     printf 'Binary: %s %s\n' "$binary_path" "$(is_installed && printf ok || printf missing)"
     printf 'OpenRC: %s %s\n' "$service_path" "$(has_service && printf ok || printf missing)"
-    printf 'Config: %s %s\n' "$config_path" "$(has_config && printf ok || printf missing)"
+    printf 'Config dir: %s %s\n' "$config_path" "$(has_config && printf ok || printf missing)"
+    printf 'GeoIP: /etc/daed/geoip.dat %s\n' "$([ -r /etc/daed/geoip.dat ] && printf ok || printf missing)"
+    printf 'Geosite: /etc/daed/geosite.dat %s\n' "$([ -r /etc/daed/geosite.dat ] && printf ok || printf missing)"
     printf 'Logs: %s\n' "$log_files"
 }
 
@@ -74,8 +87,8 @@ restart_service() {
 updates_view() {
     status_view
     printf '\nUpdate check\n'
-    printf 'Latest dae: '
-    if tag="$(latest_dae_tag 2>/dev/null)" && [ -n "$tag" ]; then
+    printf 'Latest daed: '
+    if tag="$(latest_daed_tag 2>/dev/null)" && [ -n "$tag" ]; then
         printf '%s\n' "$tag"
     else
         printf 'unable to check\n'
@@ -88,12 +101,13 @@ menu() {
         status_view
         cat <<'EOF'
 
-1) Start dae
-2) Stop dae
-3) Restart dae
+1) Start daed
+2) Stop daed
+3) Restart daed
 4) Follow logs
 5) Check updates
 6) Details
+7) Reset firstboot wizard
 0) Back
 
 EOF
@@ -102,11 +116,12 @@ EOF
         choice="$(printf '%s' "$choice" | tr -d '\r')"
         case "$choice" in
             1) start_service ;;
-            2) rc-service dae stop || true ;;
+            2) rc-service daed stop || true ;;
             3) restart_service ;;
             4) tail -n 80 -f $log_files ;;
             5) updates_view ;;
             6) details_view ;;
+            7) daed-firstboot reset ;;
             0) exit 0 ;;
             *) printf 'Unknown choice: %s\n' "$choice" ;;
         esac
@@ -121,10 +136,11 @@ case "${1:-menu}" in
     menu) menu ;;
     status) status_view ;;
     start) start_service ;;
-    stop) rc-service dae stop || true ;;
+    stop) rc-service daed stop || true ;;
     restart) restart_service ;;
     logs) tail -n 80 -f $log_files ;;
     updates) updates_view ;;
     details) details_view ;;
-    *) printf 'Usage: dae-manager [menu|status|start|stop|restart|logs|updates|details]\n'; exit 1 ;;
+    reset-firstboot) daed-firstboot reset ;;
+    *) printf 'Usage: daed-manager [menu|status|start|stop|restart|logs|updates|details|reset-firstboot]\n'; exit 1 ;;
 esac

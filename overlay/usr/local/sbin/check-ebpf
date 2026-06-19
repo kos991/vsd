@@ -18,7 +18,7 @@ if ! grep -qw cgroup2 /proc/filesystems; then
 fi
 
 if [ ! -r /sys/kernel/btf/vmlinux ]; then
-    fail "/sys/kernel/btf/vmlinux is missing. Install a kernel with BTF support for dae eBPF programs."
+    fail "/sys/kernel/btf/vmlinux is missing. Install a kernel with BTF support for daed eBPF programs."
 fi
 
 if [ "$(cat /proc/sys/net/ipv4/ip_forward)" != "1" ]; then

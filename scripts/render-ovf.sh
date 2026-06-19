@@ -33,7 +33,7 @@ cat >"${OUT}" <<EOF
     </Network>
   </NetworkSection>
   <VirtualSystem ovf:id="${NAME}">
-    <Info>Alpine dae gateway</Info>
+    <Info>Alpine daed gateway</Info>
     <Name>${NAME}</Name>
     <OperatingSystemSection ovf:id="101" vmw:osType="otherLinux64Guest">
       <Info>Alpine Linux 64-bit</Info>

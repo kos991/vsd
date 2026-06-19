@@ -4,11 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 DIST_DIR="${ROOT_DIR}/dist"
-IMAGE_NAME="dae-alpine-gateway"
+IMAGE_NAME="daed-alpine-gateway"
 ARCH="x86_64"
 
-ALPINE_VERSION="${ALPINE_VERSION:-3.20}"
-DAE_VERSION="${DAE_VERSION:-latest}"
+ALPINE_VERSION="${ALPINE_VERSION:-3.24}"
+DAED_VERSION="${DAED_VERSION:-latest}"
 MINI_PPDNS_REF="${MINI_PPDNS_REF:-release}"
 DISK_SIZE="${DISK_SIZE:-4G}"
 MEMORY_MB="${MEMORY_MB:-1024}"
@@ -105,10 +105,11 @@ apk add --no-cache \
   openssh-server \
   pciutils \
   tar \
+  unzip \
   xz
 
-echo dae-gateway >/etc/hostname
-echo 'root:dae123456' | chpasswd
+echo daed-gateway >/etc/hostname
+passwd -l root
 setup-timezone -z Asia/Shanghai || true
 ssh-keygen -A
 sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -130,31 +131,35 @@ CHROOT
 
 copy_overlay_and_install_apps() {
   rsync -a "${ROOT_DIR}/overlay/" "${ROOTFS_DIR}/"
-  install -m 0755 "${ROOT_DIR}/scripts/install-dae.sh" "${ROOTFS_DIR}/tmp/install-dae.sh"
+  install -m 0755 "${ROOT_DIR}/scripts/install-daed.sh" "${ROOTFS_DIR}/tmp/install-daed.sh"
   install -m 0755 "${ROOT_DIR}/scripts/install-mini-ppdns.sh" "${ROOTFS_DIR}/tmp/install-mini-ppdns.sh"
 
   chroot "${ROOTFS_DIR}" /bin/sh -eux <<CHROOT
-DAE_VERSION='${DAE_VERSION}' /tmp/install-dae.sh
+DAED_VERSION='${DAED_VERSION}' /tmp/install-daed.sh
 MINI_PPDNS_REF='${MINI_PPDNS_REF}' /tmp/install-mini-ppdns.sh
-rm -f /tmp/install-dae.sh /tmp/install-mini-ppdns.sh
+rm -f /tmp/install-daed.sh /tmp/install-mini-ppdns.sh
 chmod +x /usr/local/sbin/check-ebpf /usr/local/sbin/dae-gateway-manager
 chmod +x /usr/local/sbin/gateway-network-init
 chmod +x /usr/local/sbin/gateway
-chmod +x /usr/local/sbin/dae-manager /usr/local/sbin/mini-ppdns-manager
+chmod +x /usr/local/sbin/daed-manager /usr/local/sbin/mini-ppdns-manager
+chmod +x /usr/local/sbin/daed-firstboot
 chmod +x /usr/local/sbin/qos-manager
 cat >/etc/dae-gateway-release <<EOF
 ALPINE_VERSION='${ALPINE_VERSION}'
-DAE_VERSION='${DAE_VERSION}'
+DAED_VERSION='${DAED_VERSION}'
 MINI_PPDNS_REF='${MINI_PPDNS_REF}'
 IMAGE_NAME='${IMAGE_NAME}'
 EOF
-chmod +x /etc/init.d/check-ebpf /etc/init.d/dae /etc/init.d/mini-ppdns
+chmod +x /etc/init.d/check-ebpf /etc/init.d/daed /etc/init.d/mini-ppdns
+chmod +x /etc/init.d/daed-firstboot
 chmod +x /etc/init.d/gateway-network-init
 chmod +x /etc/init.d/dae-qos
 rc-update add gateway-network-init boot
 rc-update add check-ebpf default
+rc-update add daed-firstboot default
 rc-update add mini-ppdns default
 rc-update add dae-qos default
+rc-update add daed default
 CHROOT
 }
 
@@ -175,12 +180,22 @@ vmxnet3
 e1000
 e1000e
 virtio_net
+tcp_bbr
+sch_fq
+xt_TPROXY
+xt_MASQUERADE
 EOF
 
   cat >"${ROOTFS_DIR}/etc/sysctl.d/90-dae-gateway.conf" <<'EOF'
 net.ipv4.ip_forward=1
 net.ipv6.conf.all.forwarding=1
 net.core.default_qdisc=fq
+net.ipv4.conf.all.rp_filter=0
+net.ipv4.conf.default.rp_filter=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
 EOF
 
   chroot "${ROOTFS_DIR}" /bin/sh -eux <<'CHROOT'
@@ -188,7 +203,7 @@ cat >/boot/grub/grub.cfg <<EOF
 set timeout=2
 set default=0
 
-menuentry "Alpine dae gateway" {
+menuentry "Alpine daed gateway" {
     linux /boot/vmlinuz-virt root=LABEL=alpine-root modules=sd-mod,virtio_blk,virtio_pci,ext4 quiet
     initrd /boot/initramfs-virt
 }

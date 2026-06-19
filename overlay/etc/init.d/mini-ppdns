@@ -10,7 +10,7 @@ error_log="/var/log/mini-ppdns/mini-ppdns.err"
 
 depend() {
     need net
-    before dae
+    before daed
 }
 
 start_pre() {

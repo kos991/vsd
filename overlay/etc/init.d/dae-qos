@@ -1,16 +1,16 @@
 #!/sbin/openrc-run
 
-description="dae gateway CAKE/IFB QoS service"
+description="daed gateway CAKE/IFB QoS service"
 command="/usr/local/sbin/qos-manager"
 command_args="apply"
 
 depend() {
     need net
-    before dae
+    before daed
 }
 
 stop() {
-    ebegin "Clearing dae gateway QoS"
+    ebegin "Clearing daed gateway QoS"
     /usr/local/sbin/qos-manager clear
     eend $?
 }

@@ -3,7 +3,7 @@ set -eu
 
 run_action() {
     case "$1" in
-        1) dae-manager ;;
+        1) daed-manager ;;
         2) mini-ppdns-manager ;;
         3) dae-gateway-manager ebpf ;;
         4) dae-gateway-manager ip ;;
@@ -17,9 +17,9 @@ run_action() {
 while :; do
     cat <<'EOF'
 
-dae Alpine Gateway
+daed Alpine Gateway
 
-1) dae manager
+1) daed manager
 2) mini-ppdns manager
 3) eBPF check
 4) IP and routes

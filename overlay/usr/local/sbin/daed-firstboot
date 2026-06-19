@@ -1,0 +1,229 @@
+#!/bin/sh
+set -eu
+
+done_file="/etc/dae-gateway-firstboot.done"
+tcp_conf="/etc/sysctl.d/92-tcp-tuning.conf"
+one_arm_conf="/etc/sysctl.d/91-one-arm-gateway.conf"
+
+prompt_secret() {
+    label="$1"
+    while :; do
+        printf '%s: ' "$label"
+        stty -echo 2>/dev/null || true
+        read -r first || return 1
+        stty echo 2>/dev/null || true
+        printf '\n'
+        printf 'Confirm %s: ' "$label"
+        stty -echo 2>/dev/null || true
+        read -r second || return 1
+        stty echo 2>/dev/null || true
+        printf '\n'
+        if [ "$first" = "$second" ] && [ -n "$first" ]; then
+            printf '%s\n' "$first"
+            return 0
+        fi
+        printf 'Inputs did not match or were empty. Try again.\n'
+    done
+}
+
+strong_password() {
+    password="$1"
+    [ "${#password}" -ge 6 ] || return 1
+    printf '%s' "$password" | grep -q '[A-Za-z]' || return 1
+    printf '%s' "$password" | grep -q '[0-9]' || return 1
+}
+
+prompt_strong_secret() {
+    label="$1"
+    while :; do
+        password="$(prompt_secret "$label")"
+        if strong_password "$password"; then
+            printf '%s\n' "$password"
+            return 0
+        fi
+        printf 'too weak password; should contain numbers and letters, and no less than 6 in length\n'
+    done
+}
+
+prompt_default() {
+    label="$1"
+    default="$2"
+    printf '%s [%s]: ' "$label" "$default"
+    read -r value || value=""
+    value="$(printf '%s' "$value" | tr -d '\r')"
+    [ -n "$value" ] || value="$default"
+    printf '%s\n' "$value"
+}
+
+write_one_arm_gateway_sysctl() {
+    cat >"$one_arm_conf" <<'EOF'
+net.ipv4.ip_forward=1
+net.ipv6.conf.all.forwarding=1
+net.ipv4.conf.all.rp_filter=0
+net.ipv4.conf.default.rp_filter=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+EOF
+}
+
+write_tcp_tuning() {
+    bandwidth_mbps="$1"
+    latency_ms="$2"
+    memory_mb="$3"
+
+    bdp_bytes=$(( bandwidth_mbps * 1000000 / 8 * latency_ms / 1000 ))
+    min_buf=$(( 4 * 1024 * 1024 ))
+    max_buf=$(( bdp_bytes * 4 ))
+    [ "$max_buf" -ge "$min_buf" ] || max_buf="$min_buf"
+    memory_cap=$(( memory_mb * 1024 * 1024 / 4 ))
+    [ "$max_buf" -le "$memory_cap" ] || max_buf="$memory_cap"
+    [ "$max_buf" -ge "$min_buf" ] || max_buf="$min_buf"
+    default_buf=$(( max_buf / 2 ))
+
+    cat >"$tcp_conf" <<EOF
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.core.rmem_max=${max_buf}
+net.core.wmem_max=${max_buf}
+net.ipv4.tcp_rmem=4096 87380 ${max_buf}
+net.ipv4.tcp_wmem=4096 65536 ${max_buf}
+net.ipv4.tcp_mtu_probing=1
+net.ipv4.tcp_fastopen=3
+net.ipv4.tcp_slow_start_after_idle=0
+net.core.netdev_max_backlog=250000
+net.core.somaxconn=4096
+# Derived from bandwidth=${bandwidth_mbps}Mbps latency=${latency_ms}ms memory=${memory_mb}MB default_buffer=${default_buf}
+EOF
+
+    modprobe tcp_bbr >/dev/null 2>&1 || true
+    modprobe sch_fq >/dev/null 2>&1 || true
+}
+
+configure_root_password() {
+    password="$(prompt_strong_secret 'New root password')"
+    printf 'root:%s\n' "$password" | chpasswd
+    passwd -u root >/dev/null 2>&1 || true
+}
+
+configure_daed_credentials() {
+    username="$(prompt_default 'daed admin username' 'admin')"
+    password="$(prompt_strong_secret 'daed admin password')"
+    umask 077
+    cat >/etc/daed/firstboot-admin.env <<EOF
+DAED_ADMIN_USERNAME='${username}'
+DAED_ADMIN_PASSWORD='${password}'
+EOF
+    printf 'Saved daed firstboot admin credentials hint in /etc/daed/firstboot-admin.env.\n'
+    DAED_ADMIN_USERNAME="$username"
+    DAED_ADMIN_PASSWORD="$password"
+}
+
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+wait_daed_graphql() {
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if curl -fsS http://127.0.0.1:2023/ >/dev/null 2>&1; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    return 1
+}
+
+create_daed_admin() {
+    username="${DAED_ADMIN_USERNAME:-}"
+    password="${DAED_ADMIN_PASSWORD:-}"
+    [ -n "$username" ] && [ -n "$password" ] || return 0
+
+    printf 'Starting daed to create the first admin user...\n'
+    rc-service daed start >/dev/null 2>&1 || true
+
+    if ! wait_daed_graphql; then
+        printf 'daed API did not become ready. Use the saved credentials in the dashboard setup page.\n'
+        return 0
+    fi
+
+    user_json="$(json_escape "$username")"
+    pass_json="$(json_escape "$password")"
+    payload='{"query":"mutation CreateUser($username: String!, $password: String!) { createUser(username: $username, password: $password) }","variables":{"username":"'"$user_json"'","password":"'"$pass_json"'"}}'
+
+    response="$(curl -fsS -H 'Content-Type: application/json' --data "$payload" http://127.0.0.1:2023/graphql 2>/tmp/daed-firstboot-create-user.err || true)"
+    if printf '%s' "$response" | grep -q '"errors"'; then
+        printf 'daed createUser returned an error. Use the dashboard setup page if the user was not created.\n'
+        printf '%s\n' "$response" >/etc/daed/firstboot-create-user.response
+        chmod 600 /etc/daed/firstboot-create-user.response
+        return 0
+    fi
+
+    if [ -n "$response" ]; then
+        printf 'daed admin user created through GraphQL createUser.\n'
+    else
+        printf 'daed createUser returned no response. Use the dashboard setup page if login fails.\n'
+    fi
+}
+
+configure_tcp_prompt() {
+    printf 'Enable BBR TCP optimization? [Y/n]: '
+    read -r answer || answer=""
+    answer="$(printf '%s' "$answer" | tr -d '\r')"
+    case "$answer" in
+        n|N|no|NO) return 0 ;;
+    esac
+
+    bandwidth="$(prompt_default 'Line bandwidth in Mbps' '1000')"
+    latency="$(prompt_default 'Typical latency in ms' '100')"
+    memory="$(awk '/MemTotal:/ { printf "%d", $2 / 1024 }' /proc/meminfo 2>/dev/null || printf '1024')"
+    memory="$(prompt_default 'Memory size in MB' "$memory")"
+    write_tcp_tuning "$bandwidth" "$latency" "$memory"
+    sysctl -p "$tcp_conf" >/dev/null 2>&1 || true
+}
+
+run_firstboot() {
+    if [ -f "$done_file" ]; then
+        printf 'Firstboot already completed. Run "daed-firstboot reset" to run again.\n'
+        return 0
+    fi
+
+    cat <<'EOF'
+
+daed Alpine Gateway firstboot
+
+This wizard sets root login, daed admin credentials, gateway sysctl,
+and optional BBR/fq TCP tuning before the dashboard starts.
+
+EOF
+
+    configure_root_password
+    configure_daed_credentials
+    write_one_arm_gateway_sysctl
+    configure_tcp_prompt
+    sysctl --system >/dev/null 2>&1 || true
+    create_daed_admin
+
+    date -u '+%Y-%m-%dT%H:%M:%SZ' >"$done_file"
+    chmod 600 "$done_file"
+    rc-service sshd restart >/dev/null 2>&1 || true
+    rc-service daed restart >/dev/null 2>&1 || true
+
+    printf '\nFirstboot completed.\n'
+    printf 'Open daed dashboard: http://<gateway-ip>:2023\n'
+    printf 'Client gateway/DNS can point to this VM address after connectivity is verified.\n'
+}
+
+reset_firstboot() {
+    rm -f "$done_file"
+    printf 'Firstboot marker removed. Run "daed-firstboot run" or reboot.\n'
+}
+
+case "${1:-run}" in
+    run) run_firstboot ;;
+    reset) reset_firstboot ;;
+    write-tcp) write_tcp_tuning "${2:-1000}" "${3:-100}" "${4:-1024}" ;;
+    *) printf 'Usage: daed-firstboot [run|reset|write-tcp]\n'; exit 1 ;;
+esac
