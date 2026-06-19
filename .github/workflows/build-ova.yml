@@ -107,6 +107,8 @@ jobs:
         run: |
           set +e
           DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          sudo mkdir -p "${DIST_DIR}"
+          sudo chown -R "$(id -u):$(id -g)" "${DIST_DIR}" || true
           mkdir -p "${DIST_DIR}"
           if [ ! -f "${DIST_DIR}/build.status" ]; then
             echo 124 >"${DIST_DIR}/build.status"

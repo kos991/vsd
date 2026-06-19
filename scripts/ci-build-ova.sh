@@ -20,6 +20,8 @@ elif [ "${tee_status}" -ne 0 ]; then
   status="${tee_status}"
 fi
 
+sudo mkdir -p "${DIST_DIR}"
+sudo chown -R "$(id -u):$(id -g)" "${DIST_DIR}" || true
 mkdir -p "${DIST_DIR}"
 cp "${LOG_FILE}" "${DIST_DIR}/build.log" || echo 'build log was not created' >"${DIST_DIR}/build.log"
 echo "${status}" >"${DIST_DIR}/build.status"
