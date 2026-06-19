@@ -110,10 +110,9 @@ jobs:
             echo 124 >"${DIST_DIR}/build.status"
             echo "Build status was missing before artifact upload." >"${DIST_DIR}/build.log"
           fi
-          {
-            echo "### Artifact files"
-            find "${DIST_DIR}" -maxdepth 2 -type f -print -exec ls -lh {} \; || true
-          } | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Artifact directory: ${DIST_DIR}"
+          find "${DIST_DIR}" -maxdepth 2 -type f -print -exec ls -lh {} \; || true
+          exit 0
 
       - name: Upload OVA artifact
         if: always()
