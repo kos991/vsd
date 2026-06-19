@@ -103,7 +103,9 @@ jobs:
 
       - name: List artifact files
         if: always()
+        shell: bash {0}
         run: |
+          set +e
           DIST_DIR="${GITHUB_WORKSPACE}/dist"
           mkdir -p "${DIST_DIR}"
           if [ ! -f "${DIST_DIR}/build.status" ]; then
