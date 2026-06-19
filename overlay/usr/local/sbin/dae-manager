@@ -55,6 +55,22 @@ details_view() {
     printf 'Logs: %s\n' "$log_files"
 }
 
+start_service() {
+    if has_service && [ "$(service_state)" = "stopped" ]; then
+        rc-service "$service_name" zap >/dev/null 2>&1 || true
+    fi
+    rc-service "$service_name" start
+}
+
+restart_service() {
+    if has_service && [ "$(service_state)" = "stopped" ]; then
+        rc-service "$service_name" zap >/dev/null 2>&1 || true
+        rc-service "$service_name" start
+    else
+        rc-service "$service_name" restart
+    fi
+}
+
 updates_view() {
     status_view
     printf '\nUpdate check\n'
@@ -85,9 +101,9 @@ EOF
         read -r choice || exit 0
         choice="$(printf '%s' "$choice" | tr -d '\r')"
         case "$choice" in
-            1) rc-service dae start ;;
+            1) start_service ;;
             2) rc-service dae stop || true ;;
-            3) rc-service dae restart ;;
+            3) restart_service ;;
             4) tail -n 80 -f $log_files ;;
             5) updates_view ;;
             6) details_view ;;
@@ -104,9 +120,9 @@ EOF
 case "${1:-menu}" in
     menu) menu ;;
     status) status_view ;;
-    start) rc-service dae start ;;
+    start) start_service ;;
     stop) rc-service dae stop || true ;;
-    restart) rc-service dae restart ;;
+    restart) restart_service ;;
     logs) tail -n 80 -f $log_files ;;
     updates) updates_view ;;
     details) details_view ;;
