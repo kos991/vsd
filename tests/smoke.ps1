@@ -89,6 +89,8 @@ Assert-FileContains 'scripts/build-alpine-ova.sh' 'bpffs' 'Build script must con
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'cgroup2' 'Build script must configure cgroup2 mount.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'iproute2-tc' 'Build script must install tc for CAKE/IFB QoS.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'adapter_type=lsilogic' 'VMDK conversion must use VMware-compatible lsilogic adapter metadata.'
+Assert-FileContains 'scripts/ci-build-ova.sh' 'dist/build\.log' 'CI build wrapper must preserve build logs for failed OVA builds.'
+Assert-FileContains 'scripts/ci-build-ova.sh' 'dist/build\.status' 'CI build wrapper must preserve the OVA build exit status.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'RAW_CAPACITY_BYTES' 'OVF capacity must come from the raw disk size, not qemu-img output from the streamOptimized VMDK.'
 Assert-FileContains 'scripts/render-ovf.sh' 'CAPACITY_BYTES="\$\{6:\?capacity bytes required\}"' 'OVF renderer must require an explicit single capacity value.'
 Assert-FileContains 'scripts/render-ovf.sh' '\[\[ "\$\{CAPACITY_BYTES\}" =~ \^\[0-9\]\+\$ \]\]' 'OVF renderer must reject non-numeric or multi-line capacity values.'
