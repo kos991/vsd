@@ -95,6 +95,7 @@ jobs:
             dist/*.sha256
             dist/build.log
             dist/build.status
+          if-no-files-found: error
           retention-days: 14
 
       - name: Check build result
