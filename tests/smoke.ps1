@@ -81,7 +81,7 @@ Assert-FileContains 'scripts/build-alpine-ova.sh' 'vmlinuz-virt' 'GRUB must boot
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'initramfs-virt' 'GRUB must use the initramfs for the Alpine virtual kernel.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'openssh-server' 'Build script must install OpenSSH server for first login access.'
 Assert-FileDoesNotContain 'scripts/build-alpine-ova.sh' "root:dae123456" 'Build script must not bake the old default root password into the image.'
-Assert-FileContains 'scripts/build-alpine-ova.sh' "passwd -l root" 'Build script must lock root until firstboot sets a password.'
+Assert-FileContains 'scripts/build-alpine-ova.sh' "root:!" 'Build script must lock root until firstboot sets a password.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'PermitRootLogin yes' 'Build script must allow root SSH password login for first access.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'PasswordAuthentication yes' 'Build script must allow SSH password authentication for first access.'
 Assert-FileContains 'scripts/build-alpine-ova.sh' 'rc-update add sshd default' 'Build script must enable sshd by default.'

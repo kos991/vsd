@@ -109,7 +109,7 @@ apk add --no-cache \
   xz
 
 echo daed-gateway >/etc/hostname
-passwd -l root
+sed -i 's#^root:[^:]*:#root:!:#' /etc/shadow
 setup-timezone -z Asia/Shanghai || true
 ssh-keygen -A
 sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
