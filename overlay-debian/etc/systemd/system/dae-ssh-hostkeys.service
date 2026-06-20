@@ -1,6 +1,7 @@
 [Unit]
 Description=Generate SSH host keys on first boot
 DefaultDependencies=no
+After=local-fs.target
 Before=ssh.service
 ConditionPathExistsGlob=!/etc/ssh/ssh_host_*_key
 
