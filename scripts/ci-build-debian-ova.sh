@@ -9,7 +9,10 @@ cd "${WORKSPACE}"
 mkdir -p "${DIST_DIR}"
 status=0
 
-sudo --preserve-env=DEBIAN_VERSION,DEBIAN_CODENAME,DAED_VERSION,PAOPAODNS_IMAGE,XANMOD_PACKAGE,DISK_SIZE,MEMORY_MB,CPU_COUNT,SKIP_PAOPAODNS_PRELOAD \
+export LIBGUESTFS_BACKEND=direct
+sudo systemctl stop apparmor >/dev/null 2>&1 || true
+
+sudo --preserve-env=DEBIAN_VERSION,DEBIAN_CODENAME,DAED_VERSION,PAOPAODNS_IMAGE,XANMOD_PACKAGE,DISK_SIZE,MEMORY_MB,CPU_COUNT,SKIP_PAOPAODNS_PRELOAD,LIBGUESTFS_BACKEND \
   bash scripts/build-debian-ova.sh 2>&1 | tee "${LOG_FILE}"
 pipeline_status=("${PIPESTATUS[@]}")
 build_status="${pipeline_status[0]:-1}"

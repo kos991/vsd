@@ -106,6 +106,8 @@ Assert-FileContains 'scripts/ci-build-debian-ova.sh' '\$\{DIST_DIR\}/build\.log'
 Assert-FileContains 'scripts/ci-build-debian-ova.sh' '\$\{DIST_DIR\}/build\.status' 'Debian CI wrapper must preserve build status.'
 Assert-FileContains 'scripts/ci-build-debian-ova.sh' 'PIPESTATUS' 'Debian CI wrapper must preserve build status through tee.'
 Assert-FileContains 'scripts/ci-build-debian-ova.sh' 'XANMOD_PACKAGE' 'Debian CI wrapper must pass the selected XanMod kernel package through sudo.'
+Assert-FileContains 'scripts/ci-build-debian-ova.sh' 'LIBGUESTFS_BACKEND=direct' 'Debian CI wrapper must force the direct libguestfs backend on GitHub runners.'
+Assert-FileContains 'scripts/ci-build-debian-ova.sh' 'systemctl stop apparmor' 'Debian CI wrapper must avoid AppArmor blocking libguestfs passt startup.'
 
 Assert-FileContains 'scripts/render-ovf.sh' 'GUEST_INFO="\$\{7:-Linux daed gateway\}"' 'OVF renderer must support distro-specific guest text.'
 Assert-FileContains 'scripts/render-ovf.sh' 'OS_INFO="\$\{8:-Linux 64-bit\}"' 'OVF renderer must support distro-specific OS text.'
