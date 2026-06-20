@@ -62,12 +62,6 @@ cat >"${SETUP_SCRIPT}" <<SETUP
 #!/usr/bin/env bash
 set -euxo pipefail
 
-rm -f /etc/resolv.conf
-cat >/etc/resolv.conf <<'EOF'
-nameserver 1.1.1.1
-nameserver 8.8.8.8
-EOF
-
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   apparmor \
@@ -158,6 +152,9 @@ SETUP
     -a "${QCOW_IMAGE}"
     --network
     --mkdir /root/dae-gateway-build \
+    --write "/etc/resolv.conf:nameserver 1.1.1.1
+nameserver 8.8.8.8
+" \
     --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/root/dae-gateway-build/install-daed-debian.sh" \
     --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/root/dae-gateway-build/install-mini-ppdns.sh" \
     --upload "${OVERLAY_TAR}:/root/dae-gateway-build/overlay-debian.tar" \
