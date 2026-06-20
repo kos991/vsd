@@ -147,18 +147,22 @@ SETUP
 
   chmod +x "${SETUP_SCRIPT}"
 
-  virt-customize -a "${QCOW_IMAGE}" \
+  local virt_args
+  virt_args=(
+    -a "${QCOW_IMAGE}"
     --mkdir /root/dae-gateway-build \
     --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/root/dae-gateway-build/install-daed-debian.sh" \
     --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/root/dae-gateway-build/install-mini-ppdns.sh" \
     --upload "${OVERLAY_TAR}:/root/dae-gateway-build/overlay-debian.tar" \
     --upload "${SETUP_SCRIPT}:/root/dae-gateway-build/setup-debian-gateway.sh"
+  )
 
   if [ -f "${PAOPAODNS_TAR}" ]; then
-    virt-customize -a "${QCOW_IMAGE}" --upload "${PAOPAODNS_TAR}:/root/dae-gateway-build/paopaodns.tar"
+    virt_args+=(--upload "${PAOPAODNS_TAR}:/root/dae-gateway-build/paopaodns.tar")
   fi
 
-  virt-customize -a "${QCOW_IMAGE}" --run /root/dae-gateway-build/setup-debian-gateway.sh
+  virt_args+=(--run /root/dae-gateway-build/setup-debian-gateway.sh)
+  virt-customize "${virt_args[@]}"
 }
 
 package_ova() {
