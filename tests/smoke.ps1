@@ -64,7 +64,7 @@ Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.xanmod_package \|
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.disk_size \|\| '8G'" 'Push builds must default to an 8G Debian disk.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.memory_mb \|\| '2048'" 'Push builds must default to 2GB memory.'
 Assert-FileContains '.github/workflows/build-ova.yml' "inputs\.cpu_count \|\| '2'" 'Push builds must default to 2 CPUs.'
-Assert-FileContains '.github/workflows/build-ova.yml' 'runs-on: ubuntu-24\.04' 'Workflow must pin the runner image instead of using ubuntu-latest for OVA builds.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'runs-on: ubuntu-22\.04' 'Workflow must pin the runner image to avoid Ubuntu 24.04 libguestfs passt networking issues.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'libguestfs-tools' 'Workflow must install libguestfs tools for Debian cloud image customization.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'docker --version' 'Workflow must verify the runner Docker CLI used to preload PaoPaoDNS.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'add-apt-repository -y universe' 'Workflow must enable the Ubuntu universe repository before installing guestfs and Docker tools.'
