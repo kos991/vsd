@@ -67,6 +67,8 @@ cat >>/etc/hosts <<'EOF'
 151.101.66.132 deb.debian.org security.debian.org
 151.101.130.132 deb.debian.org security.debian.org
 151.101.194.132 deb.debian.org security.debian.org
+104.21.40.143 deb.xanmod.org
+172.67.153.8 deb.xanmod.org
 EOF
 
 apt-get update
@@ -92,9 +94,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   unzip \
   xz-utils
 
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://dl.xanmod.org/archive.key | gpg --dearmor -o /etc/apt/keyrings/xanmod-archive-keyring.gpg
-echo "deb [signed-by=/etc/apt/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org ${DEBIAN_CODENAME} main" >/etc/apt/sources.list.d/xanmod-release.list
+echo "deb [trusted=yes] http://deb.xanmod.org ${DEBIAN_CODENAME} main" >/etc/apt/sources.list.d/xanmod-release.list
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${XANMOD_PACKAGE}"
 
