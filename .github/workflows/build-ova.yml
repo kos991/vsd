@@ -83,6 +83,9 @@ jobs:
 
       - name: Install build tools
         run: |
+          DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          mkdir -p "${DIST_DIR}"
+          exec > >(tee "${DIST_DIR}/install-tools.log") 2>&1
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends software-properties-common
           sudo add-apt-repository -y universe
@@ -131,9 +134,22 @@ jobs:
             echo 124 >"${DIST_DIR}/build.status"
             echo "Build status was missing before artifact upload." >"${DIST_DIR}/build.log"
           fi
+          if [ -f "${DIST_DIR}/install-tools.log" ]; then
+            echo "----- dist/install-tools.log -----"
+            cat "${DIST_DIR}/install-tools.log"
+          fi
           echo "Artifact directory: ${DIST_DIR}"
           find "${DIST_DIR}" -maxdepth 2 -type f -print -exec ls -lh {} \; || true
           exit 0
+
+      - name: Upload diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daed-debian-gateway-diagnostics
+          path: ${{ github.workspace }}/dist/*
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload OVA artifact
         if: always()
