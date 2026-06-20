@@ -49,7 +49,7 @@ permissions:
 jobs:
   build:
     name: Build OVA
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       DEBIAN_VERSION: ${{ inputs.debian_version || '13' }}
@@ -94,7 +94,6 @@ jobs:
             bash \
             ca-certificates \
             curl \
-            docker.io \
             dosfstools \
             e2fsprogs \
             fdisk \
@@ -107,6 +106,7 @@ jobs:
             rsync \
             tar \
             xz-utils
+          docker --version
 
       - name: Run template smoke tests
         shell: bash
