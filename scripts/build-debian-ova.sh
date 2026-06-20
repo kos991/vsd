@@ -58,9 +58,15 @@ preload_paopaodns_image() {
 customize_image() {
   tar -C "${ROOT_DIR}/overlay-debian" -cf "${OVERLAY_TAR}" .
 
-  cat >"${SETUP_SCRIPT}" <<SETUP
+cat >"${SETUP_SCRIPT}" <<SETUP
 #!/usr/bin/env bash
 set -euxo pipefail
+
+rm -f /etc/resolv.conf
+cat >/etc/resolv.conf <<'EOF'
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \

@@ -82,6 +82,7 @@ Assert-FileContains '.github/workflows/build-ova.yml' '::error title=OVA build f
 Assert-FileContains 'scripts/build-debian-ova.sh' 'cloud\.debian\.org/images/cloud' 'Debian build must use the official Debian cloud image.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'debian-%s-genericcloud-amd64\.qcow2' 'Debian build must use the genericcloud amd64 image.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'qemu-img resize "\$\{QCOW_IMAGE\}" "\$\{DISK_SIZE\}"' 'Debian build must resize the cloud image to the requested disk size.'
+Assert-FileContains 'scripts/build-debian-ova.sh' 'nameserver 1\.1\.1\.1' 'Debian guest setup must seed resolv.conf before apt runs under libguestfs.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'virt_args=\(' 'Debian build must assemble a single virt-customize transaction.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '-a "\$\{QCOW_IMAGE\}"' 'Debian build must customize the cloud image offline with libguestfs.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--mkdir /root/dae-gateway-build' 'Debian build must create a persistent guest build staging directory.'
