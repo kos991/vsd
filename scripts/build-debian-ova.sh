@@ -91,13 +91,13 @@ echo "deb [signed-by=/etc/apt/keyrings/xanmod-archive-keyring.gpg] http://deb.xa
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${XANMOD_PACKAGE}"
 
-DAED_VERSION='${DAED_VERSION}' sh /tmp/install-daed-debian.sh
-rm -f /tmp/install-daed-debian.sh
-MINI_PPDNS_REF='release' sh /tmp/install-mini-ppdns.sh
-rm -f /tmp/install-mini-ppdns.sh
+DAED_VERSION='${DAED_VERSION}' sh /root/dae-gateway-build/install-daed-debian.sh
+rm -f /root/dae-gateway-build/install-daed-debian.sh
+MINI_PPDNS_REF='release' sh /root/dae-gateway-build/install-mini-ppdns.sh
+rm -f /root/dae-gateway-build/install-mini-ppdns.sh
 
-tar -xf /tmp/overlay-debian.tar -C /
-rm -f /tmp/overlay-debian.tar
+tar -xf /root/dae-gateway-build/overlay-debian.tar -C /
+rm -f /root/dae-gateway-build/overlay-debian.tar
 sed -i "s#^PAOPAODNS_IMAGE=.*#PAOPAODNS_IMAGE=${PAOPAODNS_IMAGE}#" /etc/paopaodns/paopaodns.env
 
 chmod +x /usr/local/sbin/check-ebpf
@@ -110,8 +110,8 @@ chmod +x /usr/local/sbin/paopaodns-manager
 chmod +x /usr/local/sbin/mini-ppdns-manager
 chmod +x /usr/local/sbin/qos-manager
 mkdir -p /etc/dae-gateway /etc/paopaodns /var/lib/paopaodns /opt/dae-gateway/images /etc/daed /var/log/daed
-if [ -f /tmp/paopaodns.tar ]; then
-  mv /tmp/paopaodns.tar /opt/dae-gateway/images/paopaodns.tar
+if [ -f /root/dae-gateway-build/paopaodns.tar ]; then
+  mv /root/dae-gateway-build/paopaodns.tar /opt/dae-gateway/images/paopaodns.tar
 fi
 
 apt-get clean
@@ -148,16 +148,17 @@ SETUP
   chmod +x "${SETUP_SCRIPT}"
 
   virt-customize -a "${QCOW_IMAGE}" \
-    --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/tmp/install-daed-debian.sh" \
-    --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/tmp/install-mini-ppdns.sh" \
-    --upload "${OVERLAY_TAR}:/tmp/overlay-debian.tar" \
-    --upload "${SETUP_SCRIPT}:/tmp/setup-debian-gateway.sh"
+    --mkdir /root/dae-gateway-build \
+    --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/root/dae-gateway-build/install-daed-debian.sh" \
+    --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/root/dae-gateway-build/install-mini-ppdns.sh" \
+    --upload "${OVERLAY_TAR}:/root/dae-gateway-build/overlay-debian.tar" \
+    --upload "${SETUP_SCRIPT}:/root/dae-gateway-build/setup-debian-gateway.sh"
 
   if [ -f "${PAOPAODNS_TAR}" ]; then
-    virt-customize -a "${QCOW_IMAGE}" --upload "${PAOPAODNS_TAR}:/tmp/paopaodns.tar"
+    virt-customize -a "${QCOW_IMAGE}" --upload "${PAOPAODNS_TAR}:/root/dae-gateway-build/paopaodns.tar"
   fi
 
-  virt-customize -a "${QCOW_IMAGE}" --run /tmp/setup-debian-gateway.sh
+  virt-customize -a "${QCOW_IMAGE}" --run /root/dae-gateway-build/setup-debian-gateway.sh
 }
 
 package_ova() {
