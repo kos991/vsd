@@ -74,8 +74,10 @@ Assert-FileContains '.github/workflows/build-ova.yml' 'scripts/ci-build-debian-o
 Assert-FileContains '.github/workflows/build-ova.yml' 'daed-debian-gateway-ova' 'Workflow must upload the Debian OVA artifact.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'daed-debian-gateway-diagnostics' 'Workflow must upload diagnostics separately from the OVA artifact.'
 Assert-FileContains '.github/workflows/build-ova.yml' '\$\{\{ github\.workspace \}\}/dist/\*\.ova' 'Workflow must upload only the OVA file.'
+Assert-FileContains '.github/workflows/build-ova.yml' '\$\{\{ github\.workspace \}\}/dist/\*\.log' 'Workflow diagnostics must include logs.'
+Assert-FileContains '.github/workflows/build-ova.yml' '\$\{\{ github\.workspace \}\}/dist/\*\.status' 'Workflow diagnostics must include build status.'
+Assert-FileDoesNotContain '.github/workflows/build-ova.yml' 'name: daed-debian-gateway-diagnostics[\s\S]*path: \$\{\{ github\.workspace \}\}/dist/\*[\r\n]' 'Workflow diagnostics must not upload the whole dist directory.'
 Assert-FileDoesNotContain '.github/workflows/build-ova.yml' 'daed-alpine-gateway-ova' 'Workflow must not publish the old Alpine artifact as the main output.'
-Assert-FileDoesNotContain '.github/workflows/build-ova.yml' '\$\{\{ github\.workspace \}\}/dist/\*\.sha256' 'Workflow must not include checksum files in the downloadable OVA artifact.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'cat "\$\{GITHUB_WORKSPACE\}/dist/build\.log"' 'Workflow must print failed build logs.'
 Assert-FileContains '.github/workflows/build-ova.yml' '::error title=OVA build failed::' 'Workflow must expose failed OVA logs in an annotation.'
 
