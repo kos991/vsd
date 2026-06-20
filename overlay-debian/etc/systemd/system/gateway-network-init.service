@@ -1,0 +1,13 @@
+[Unit]
+Description=dae gateway network initialization
+After=systemd-networkd.service network-online.target
+Wants=network-online.target
+Before=check-ebpf.service daed.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/gateway-network-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -20,4 +20,16 @@ if command -v bpftool >/dev/null 2>&1; then
 fi
 
 [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null || printf 0)" = "1" ] || fail 'IPv4 forwarding is disabled'
+
+congestion="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || printf unknown)"
+qdisc="$(sysctl -n net.core.default_qdisc 2>/dev/null || printf unknown)"
+bbr_version="$(modinfo tcp_bbr 2>/dev/null | awk '/^version:/ { print $2; exit }')"
+
 printf 'eBPF prerequisites look usable.\n'
+printf 'TCP congestion control: %s\n' "$congestion"
+printf 'Default qdisc: %s\n' "$qdisc"
+if [ -n "$bbr_version" ]; then
+    printf 'tcp_bbr version: %s\n' "$bbr_version"
+else
+    printf 'tcp_bbr version: unknown\n'
+fi

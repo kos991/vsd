@@ -12,7 +12,7 @@ DAED_VERSION="${DAED_VERSION:-latest}"
 PAOPAODNS_IMAGE="${PAOPAODNS_IMAGE:-sliamb/paopaodns:latest}"
 XANMOD_PACKAGE="${XANMOD_PACKAGE:-linux-xanmod-x64v3}"
 DISK_SIZE="${DISK_SIZE:-8G}"
-MEMORY_MB="${MEMORY_MB:-2048}"
+MEMORY_MB="${MEMORY_MB:-4096}"
 CPU_COUNT="${CPU_COUNT:-2}"
 SKIP_PAOPAODNS_PRELOAD="${SKIP_PAOPAODNS_PRELOAD:-0}"
 
@@ -80,6 +80,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   curl \
   dbus \
   docker.io \
+  docker-cli \
   ethtool \
   gnupg \
   iproute2 \
@@ -108,6 +109,7 @@ rm -f /root/dae-gateway-build/overlay-debian.tar
 sed -i "s#^PAOPAODNS_IMAGE=.*#PAOPAODNS_IMAGE=${PAOPAODNS_IMAGE}#" /etc/paopaodns/paopaodns.env
 
 chmod +x /usr/local/sbin/check-ebpf
+chmod +x /usr/local/sbin/gateway-network-init
 chmod +x /usr/local/sbin/dae-gateway-firstboot
 chmod +x /usr/local/sbin/gateway
 chmod +x /usr/local/sbin/dae-gateway-manager
@@ -121,8 +123,20 @@ if [ -f /root/dae-gateway-build/paopaodns.tar ]; then
   mv /root/dae-gateway-build/paopaodns.tar /opt/dae-gateway/images/paopaodns.tar
 fi
 
+packages_to_purge="\$(dpkg-query -W -f='\${Package}\n' \
+  qemu-utils \
+  docker-buildx \
+  vim-runtime \
+  'linux-headers-*' \
+  'linux-image-*' 2>/dev/null \
+  | awk '/^linux-image-/ && /xanmod/ { next } { print }')"
+if [ -n "\${packages_to_purge}" ]; then
+  DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove \${packages_to_purge} || true
+fi
+DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge || true
 apt-get clean
-rm -rf /var/lib/apt/lists/*
+rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*
+rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /usr/share/lintian /usr/share/linda
 echo daed-gateway >/etc/hostname
 passwd -l root || true
 mkdir -p /etc/systemd/resolved.conf.d
@@ -145,6 +159,7 @@ XANMOD_PACKAGE='${XANMOD_PACKAGE}'
 IMAGE_NAME='${IMAGE_NAME}'
 EOF
 systemctl enable check-ebpf.service
+systemctl enable gateway-network-init.service
 systemctl enable dae-gateway-firstboot.service
 systemctl enable paopaodns.service
 systemctl enable dae-qos.service
@@ -160,8 +175,8 @@ SETUP
     --network
     --mkdir /root/dae-gateway-build \
     --delete /etc/resolv.conf \
-    --write "/etc/resolv.conf:nameserver 1.1.1.1
-nameserver 8.8.8.8
+    --write "/etc/resolv.conf:nameserver 223.5.5.5
+nameserver 119.29.29.29
 " \
     --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/root/dae-gateway-build/install-daed-debian.sh" \
     --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/root/dae-gateway-build/install-mini-ppdns.sh" \
@@ -175,6 +190,7 @@ nameserver 8.8.8.8
 
   virt_args+=(--run-command "bash /root/dae-gateway-build/setup-debian-gateway.sh")
   virt-customize "${virt_args[@]}"
+  virt-sparsify --in-place "${QCOW_IMAGE}"
 }
 
 package_ova() {

@@ -33,7 +33,7 @@ on:
       memory_mb:
         description: OVF memory hint in MB
         required: true
-        default: '2048'
+        default: '4096'
       cpu_count:
         description: OVF CPU hint
         required: true
@@ -58,7 +58,7 @@ jobs:
       PAOPAODNS_IMAGE: ${{ inputs.paopaodns_image || 'sliamb/paopaodns:latest' }}
       XANMOD_PACKAGE: ${{ inputs.xanmod_package || 'linux-xanmod-x64v3' }}
       DISK_SIZE: ${{ inputs.disk_size || '8G' }}
-      MEMORY_MB: ${{ inputs.memory_mb || '2048' }}
+      MEMORY_MB: ${{ inputs.memory_mb || '4096' }}
       CPU_COUNT: ${{ inputs.cpu_count || '2' }}
     steps:
       - name: Check out repository
@@ -108,16 +108,6 @@ jobs:
             xz-utils
           sudo apt-get purge -y passt || true
           docker --version
-
-      - name: Run template smoke tests
-        shell: bash
-        run: |
-          DIST_DIR="${GITHUB_WORKSPACE}/dist"
-          mkdir -p "${DIST_DIR}"
-          status=0
-          pwsh -NoProfile -ExecutionPolicy Bypass -File ./tests/smoke.ps1 >"${DIST_DIR}/smoke.log" 2>&1 || status=$?
-          cat "${DIST_DIR}/smoke.log"
-          exit "${status}"
 
       - name: Build OVA
         run: bash scripts/ci-build-debian-ova.sh

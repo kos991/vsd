@@ -8,7 +8,10 @@ load_config() {
     WAN_IFACE=""
     DOWNLOAD_MBIT=""
     UPLOAD_MBIT=""
-    [ -f "$config_path" ] && . "$config_path"
+    if [ -f "$config_path" ]; then
+        . "$config_path"
+    fi
+    return 0
 }
 
 apply_qos() {

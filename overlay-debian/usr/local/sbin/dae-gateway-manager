@@ -7,6 +7,13 @@ case "${1:-status}" in
         systemctl --no-pager --plain status daed.service paopaodns.service dae-qos.service 2>/dev/null || true
         printf '\nAddresses\n'
         ip -br addr || true
+        printf '\nKernel and TCP\n'
+        printf 'Kernel: %s\n' "$(uname -r)"
+        printf 'Congestion control: %s\n' "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || printf unknown)"
+        printf 'Available congestion: %s\n' "$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || printf unknown)"
+        printf 'Default qdisc: %s\n' "$(sysctl -n net.core.default_qdisc 2>/dev/null || printf unknown)"
+        bbr_version="$(modinfo tcp_bbr 2>/dev/null | awk '/^version:/ { print $2; exit }')"
+        printf 'tcp_bbr version: %s\n' "${bbr_version:-unknown}"
         ;;
     ebpf) check-ebpf ;;
     *) printf 'Usage: dae-gateway-manager [status|ebpf]\n'; exit 1 ;;

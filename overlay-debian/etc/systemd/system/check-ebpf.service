@@ -1,7 +1,7 @@
 [Unit]
 Description=Check eBPF prerequisites for daed
 DefaultDependencies=no
-After=local-fs.target sysinit.target
+After=local-fs.target sysinit.target gateway-network-init.service
 Before=daed.service
 
 [Service]

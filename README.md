@@ -28,7 +28,7 @@ Workflow inputs:
 - `paopaodns_image`: PaoPaoDNS image, default `sliamb/paopaodns:latest`.
 - `xanmod_package`: XanMod kernel package, default `linux-xanmod-x64v3`. Use `linux-xanmod-x64v2` for older CPUs.
 - `disk_size`: virtual disk size, default `8G`.
-- `memory_mb`: OVF memory hint, default `2048`.
+- `memory_mb`: OVF memory hint, default `4096`.
 - `cpu_count`: OVF CPU hint, default `2`.
 
 ## Firstboot
@@ -98,6 +98,12 @@ paopaodns-manager logs
 
 `mini-ppdns` is installed only as a fallback. It is disabled by default because it also binds port `53`.
 
+## Image Size
+
+The image keeps the PaoPaoDNS container archive under `/opt/dae-gateway/images/` so DNS can start without pulling the image again. The build removes non-runtime leftovers such as Linux headers, the stock Debian cloud kernel, apt caches, documentation, manual pages, and unused build helper packages before converting the disk to VMDK.
+
+The image keeps the XanMod kernel, Docker runtime, daed, PaoPaoDNS archive, SSH, and `open-vm-tools` because they are runtime components.
+
 ## daed
 
 daed is installed from the upstream Debian package. Its original dashboard remains the place to create the admin user, add nodes, and manage daed's own configuration.
@@ -137,6 +143,8 @@ The preflight checks:
 - `/sys/kernel/btf/vmlinux` exists.
 - `bpftool feature probe kernel` can run.
 - `ip_forward` is enabled.
+
+The gateway overview and eBPF check also print the TCP congestion control, default qdisc, and `tcp_bbr` module version. On XanMod BBRv3 still appears as congestion control `bbr`; verify the module reports `version: 3`.
 
 ## Local Verification
 
