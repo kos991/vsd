@@ -1,0 +1,4 @@
+Debian daed Gateway
+
+Run gateway to open the management menu.
+Open daed dashboard at http://<gateway-ip>:2023.

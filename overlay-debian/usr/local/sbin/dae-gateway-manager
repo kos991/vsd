@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+case "${1:-status}" in
+    status)
+        printf '\nGateway overview\n\n'
+        systemctl --no-pager --plain status daed.service paopaodns.service dae-qos.service 2>/dev/null || true
+        printf '\nAddresses\n'
+        ip -br addr || true
+        ;;
+    ebpf) check-ebpf ;;
+    *) printf 'Usage: dae-gateway-manager [status|ebpf]\n'; exit 1 ;;
+esac

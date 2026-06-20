@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+fail() {
+    printf 'FAIL: %s\n' "$*" >&2
+    exit 1
+}
+
+mountpoint -q /sys/fs/bpf || mount -t bpf bpffs /sys/fs/bpf 2>/dev/null || true
+mountpoint -q /sys/fs/bpf || fail '/sys/fs/bpf is not mounted'
+
+if ! mount | grep -q ' /sys/fs/cgroup .*cgroup2'; then
+    fail '/sys/fs/cgroup is not cgroup2'
+fi
+
+[ -r /sys/kernel/btf/vmlinux ] || fail '/sys/kernel/btf/vmlinux is missing'
+
+if command -v bpftool >/dev/null 2>&1; then
+    bpftool feature probe kernel >/dev/null 2>&1 || true
+fi
+
+[ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null || printf 0)" = "1" ] || fail 'IPv4 forwarding is disabled'
+printf 'eBPF prerequisites look usable.\n'

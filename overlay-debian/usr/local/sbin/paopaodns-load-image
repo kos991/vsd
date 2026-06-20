@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+image="${PAOPAODNS_IMAGE:-sliamb/paopaodns:latest}"
+archive="/opt/dae-gateway/images/paopaodns.tar"
+
+if docker image inspect "$image" >/dev/null 2>&1; then
+    exit 0
+fi
+
+if [ -f "$archive" ]; then
+    docker load -i "$archive"
+    exit 0
+fi
+
+docker pull "$image"

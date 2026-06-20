@@ -7,6 +7,8 @@ MEMORY_MB="${3:?memory mb required}"
 CPU_COUNT="${4:?cpu count required}"
 OUT="${5:?output ovf required}"
 CAPACITY_BYTES="${6:?capacity bytes required}"
+GUEST_INFO="${7:-Linux daed gateway}"
+OS_INFO="${8:-Linux 64-bit}"
 
 if ! [[ "${CAPACITY_BYTES}" =~ ^[0-9]+$ ]]; then
   echo "capacity bytes must be a single decimal integer" >&2
@@ -33,10 +35,10 @@ cat >"${OUT}" <<EOF
     </Network>
   </NetworkSection>
   <VirtualSystem ovf:id="${NAME}">
-    <Info>Alpine daed gateway</Info>
+    <Info>${GUEST_INFO}</Info>
     <Name>${NAME}</Name>
     <OperatingSystemSection ovf:id="101" vmw:osType="otherLinux64Guest">
-      <Info>Alpine Linux 64-bit</Info>
+      <Info>${OS_INFO}</Info>
     </OperatingSystemSection>
     <VirtualHardwareSection>
       <Info>Virtual hardware requirements</Info>

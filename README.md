@@ -1,54 +1,46 @@
-# daed Alpine Gateway OVA
+# Debian 13 daed Gateway OVA
 
-This template builds a lightweight Alpine Linux gateway OVA with:
+This repository builds a VMware OVA gateway image that stitches together mature components:
 
-- `daed` installed as the primary dashboard and daemon.
-- Alpine `linux-virt` selected for VMware-friendly eBPF/BTF support.
-- `geoip.dat` and `geosite.dat` installed with daed for split rules.
-- `mini-ppdns` installed as a native OpenRC DNS failover service.
-- Firstboot console setup for the root password and TCP tuning.
-- No Docker, no SMbox, no Singbox, and no full PaoPaoDNS container stack.
+- Debian 13 (`trixie`) as the stable high-performance base.
+- XanMod kernel, default `linux-xanmod-x64v3`, for stronger gateway throughput and scheduler latency.
+- `daed` as the original proxy dashboard and transparent proxy runtime.
+- `PaoPaoDNS` as the primary DNS service through the official container image.
+- BBR/fq, eBPF/BTF checks, nftables tooling, and optional CAKE/IFB QoS.
+- `open-vm-tools` for VMware guest integration.
+- A small console `gateway` menu for status, start/stop/restart, logs, updates, and QoS.
 
-The intended workflow is simple: push this repository to GitHub, open **Actions**, run **Build Alpine gateway OVA**, and download the generated OVA artifact.
+The goal is not to replace daed or PaoPaoDNS. The image installs them, wires their services together, and gives you a simple recovery path.
 
 ## GitHub Actions Usage
 
-1. Push these files to a GitHub repository.
+1. Push this repository to GitHub.
 2. Open the repository's **Actions** tab.
-3. Select **Build Alpine gateway OVA**.
+3. Select **Build Debian gateway OVA**.
 4. Click **Run workflow**.
-5. Download the `daed-alpine-gateway-ova` artifact after the workflow finishes.
+5. Download the `daed-debian-gateway-ova` artifact after the workflow finishes.
 
 Workflow inputs:
 
-- `alpine_version`: Alpine branch, default `3.24`.
+- `debian_version`: Debian major version, default `13`.
+- `debian_codename`: Debian codename, default `trixie`.
 - `daed_version`: `latest` or a daed tag such as `v1.27.0`.
-- `mini_ppdns_ref`: source ref for mini-ppdns release branch, normally `release`.
-- `disk_size`: raw disk size, default `4G`.
-- `memory_mb`: OVF memory hint, default `1024`.
-- `cpu_count`: OVF CPU hint, default `1`.
+- `paopaodns_image`: PaoPaoDNS image, default `sliamb/paopaodns:latest`.
+- `xanmod_package`: XanMod kernel package, default `linux-xanmod-x64v3`. Use `linux-xanmod-x64v2` for older CPUs.
+- `disk_size`: virtual disk size, default `8G`.
+- `memory_mb`: OVF memory hint, default `2048`.
+- `cpu_count`: OVF CPU hint, default `2`.
 
 ## Firstboot
 
-The image no longer bakes in a default `root` password. On first boot, the console wizard asks for:
-
-- root password
-- whether to enable BBR/fq TCP optimization
-- bandwidth, latency, and memory values for Omnitt-style TCP buffer sizing
+The image does not bake in a default `root` password. On first boot, the console wizard asks only for the root password.
 
 The root password only needs to be non-empty and entered the same way twice. The wizard writes `/etc/dae-gateway-firstboot.done` after completion.
 
-Create the daed administrator in the official daed dashboard after firstboot:
+Create the daed administrator in the original daed dashboard:
 
 ```text
 http://<gateway-ip>:2023
-```
-
-Reset the wizard if needed:
-
-```sh
-daed-firstboot reset
-reboot
 ```
 
 ## Runtime Layout
@@ -56,25 +48,16 @@ reboot
 Inside the generated VM:
 
 - `/usr/bin/daed`
-- `/usr/sbin/mini-ppdns`
 - `/etc/daed/`
-- `/etc/daed/geoip.dat`
-- `/etc/daed/geosite.dat`
-- `/etc/mini-ppdns.ini`
+- `/usr/share/daed/geoip.dat`
+- `/usr/share/daed/geosite.dat`
+- `/etc/paopaodns/paopaodns.env`
+- `/var/lib/paopaodns/`
 - `/usr/local/sbin/gateway`
 - `/usr/local/sbin/daed-manager`
-- `/usr/local/sbin/mini-ppdns-manager`
-- `/usr/local/sbin/dae-gateway-manager`
-- `/usr/local/sbin/daed-firstboot`
+- `/usr/local/sbin/paopaodns-manager`
+- `/usr/local/sbin/qos-manager`
 - `/usr/local/sbin/check-ebpf`
-- `/var/log/daed/`
-- `/var/log/mini-ppdns/`
-
-Open the dashboard after firstboot and create the daed administrator there:
-
-```text
-http://<gateway-ip>:2023
-```
 
 Quick menu:
 
@@ -85,83 +68,75 @@ gateway
 The menu uses number shortcuts:
 
 - `1`: daed manager
-- `2`: mini-ppdns manager
-- `2`: eBPF check
-- `4`: IP and routes
-- `3`: Gateway overview
-- `4`: QoS / CAKE
+- `2`: PaoPaoDNS manager
+- `3`: eBPF check
+- `4`: Gateway overview
+- `5`: QoS / CAKE
+- `6`: mini-ppdns fallback
 - `0`: exit
 
-Service managers show short status first:
+## PaoPaoDNS
+
+PaoPaoDNS is the primary DNS service. The first Debian version uses the official `sliamb/paopaodns` container with host networking for the least moving parts and good DNS performance.
+
+Important paths:
+
+```text
+/etc/paopaodns/paopaodns.env
+/var/lib/paopaodns/
+```
+
+Manage it from the console:
+
+```sh
+paopaodns-manager status
+paopaodns-manager restart
+paopaodns-manager logs
+```
+
+`systemd-resolved` stub listening is disabled so PaoPaoDNS can bind TCP/UDP port `53`.
+
+`mini-ppdns` is installed only as a fallback. It is disabled by default because it also binds port `53`.
+
+## daed
+
+daed is installed from the upstream Debian package. Its original dashboard remains the place to create the admin user, add nodes, and manage daed's own configuration.
+
+```text
+http://<gateway-ip>:2023
+```
+
+Manage the service:
 
 ```sh
 daed-manager status
-mini-ppdns-manager status
+daed-manager restart
+daed-manager logs
 ```
-
-Use `Details` in the menu, or run `details`, when you need technical paths, service state, config files, and logs:
-
-```sh
-daed-manager details
-mini-ppdns-manager details
-```
-
-## TCP Optimization
-
-The stable Alpine image uses the official Alpine `linux-virt` kernel with standard BBR and fq:
-
-```conf
-net.core.default_qdisc=fq
-net.ipv4.tcp_congestion_control=bbr
-```
-
-BBR3 is intentionally not part of this default Alpine image. If BBR3 becomes required, use a separate Debian 13 + XanMod experimental image rather than changing this stable appliance.
-
-## mini-ppdns
-
-`mini-ppdns` starts by default and listens on port `53`. Configure DNS endpoints without editing the ini file manually:
-
-```sh
-mini-ppdns-manager configure
-```
-
-The wizard can apply the recommended DNS set, ask for custom DNS IPs, show the current config, and optionally restart `mini-ppdns` after writing `/etc/mini-ppdns.ini`.
 
 ## QoS
 
-Optional QoS uses Linux `tc`, CAKE, and IFB for upload and download shaping:
+CAKE/IFB tools are installed but not blindly enabled. Configure them only after you know the real WAN interface and bandwidth:
 
 ```sh
 qos-manager
 ```
 
-It is installed but disabled until you enter the WAN interface and real download/upload bandwidth. The settings are saved to `/etc/dae-gateway-qos.conf`; the `dae-qos` OpenRC service restores them at boot only when QoS is enabled.
+Settings are saved to `/etc/dae-gateway-qos.conf`; `dae-qos.service` restores them at boot only when QoS is enabled.
 
 ## eBPF Notes
 
-daed relies on dae's Linux eBPF transparent proxy model. The image installs Alpine `linux-virt`, mounts `bpffs` at `/sys/fs/bpf`, mounts cgroup v2 at `/sys/fs/cgroup`, and installs a preflight service that probes BPF support before daed starts.
+The Debian image installs the XanMod kernel from the official XanMod APT repository. The default package is `linux-xanmod-x64v3`; change the workflow input to `linux-xanmod-x64v2` if the VM host CPU is older.
+
+The VM still verifies the real runtime state before daed starts.
 
 The preflight checks:
 
 - `/sys/fs/bpf` is mounted.
-- `/sys/fs/cgroup` is mounted as cgroup2.
-- `/sys/kernel/btf/vmlinux` exists for BTF-enabled eBPF program loading.
+- `/sys/fs/cgroup` is cgroup v2.
+- `/sys/kernel/btf/vmlinux` exists.
 - `bpftool feature probe kernel` can run.
 - `ip_forward` is enabled.
-
-## Default Network Behavior
-
-The image detects the first physical non-loopback network interface at boot, persists DHCP for that interface, and ignores virtual interfaces such as `dae0`, Docker bridges, veth pairs, tunnels, and IFB devices.
-
-It enables one-arm same-LAN gateway sysctl settings:
-
-- IPv4 forwarding enabled.
-- `rp_filter` disabled.
-- `send_redirects` disabled.
-- `accept_redirects` disabled.
-- NAT masquerading added for traffic leaving the detected LAN interface.
-
-Client machines can use the VM IP as gateway and DNS after daed and mini-ppdns are configured.
 
 ## Local Verification
 
@@ -171,4 +146,4 @@ Run the smoke tests from PowerShell:
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/smoke.ps1
 ```
 
-The full OVA build requires Linux tools and is designed to run in GitHub Actions on `ubuntu-latest`.
+The full OVA build is designed to run in GitHub Actions on `ubuntu-latest`.

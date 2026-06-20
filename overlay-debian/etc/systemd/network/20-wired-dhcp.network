@@ -1,0 +1,7 @@
+[Match]
+Name=en* eth*
+
+[Network]
+DHCP=yes
+IPv4Forwarding=yes
+IPv6Forwarding=yes

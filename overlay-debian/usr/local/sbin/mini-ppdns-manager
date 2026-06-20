@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+service_name="mini-ppdns.service"
+config_path="/etc/mini-ppdns.ini"
+
+status_view() {
+    printf '\nmini-ppdns fallback status\n\n'
+    systemctl is-active --quiet "$service_name" && printf 'Service: running\n' || printf 'Service: stopped\n'
+    systemctl is-enabled --quiet "$service_name" && printf 'Boot: enabled\n' || printf 'Boot: disabled\n'
+    printf 'Config: %s %s\n' "$config_path" "$([ -f "$config_path" ] && printf ok || printf missing)"
+}
+
+switch_to_fallback() {
+    systemctl stop paopaodns.service || true
+    systemctl disable paopaodns.service >/dev/null 2>&1 || true
+    systemctl enable "$service_name" >/dev/null 2>&1 || true
+    systemctl restart "$service_name"
+}
+
+case "${1:-status}" in
+    status) status_view ;;
+    start) systemctl start "$service_name" ;;
+    stop) systemctl stop "$service_name" || true ;;
+    restart) systemctl restart "$service_name" ;;
+    logs) journalctl -u "$service_name" -n 120 -f ;;
+    switch) switch_to_fallback ;;
+    *) printf 'Usage: mini-ppdns-manager [status|start|stop|restart|logs|switch]\n'; exit 1 ;;
+esac

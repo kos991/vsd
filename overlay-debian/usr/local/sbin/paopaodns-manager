@@ -1,0 +1,86 @@
+#!/bin/sh
+set -eu
+
+service_name="paopaodns.service"
+data_dir="/var/lib/paopaodns"
+env_file="/etc/paopaodns/paopaodns.env"
+
+service_state() {
+    systemctl is-active --quiet "$service_name" && printf 'running' || printf 'stopped'
+}
+
+boot_state() {
+    systemctl is-enabled --quiet "$service_name" && printf 'enabled' || printf 'disabled'
+}
+
+status_view() {
+    printf '\nPaoPaoDNS status\n\n'
+    printf 'Service: %s\n' "$(service_state)"
+    printf 'Boot: %s\n' "$(boot_state)"
+    printf 'Data: %s %s\n' "$data_dir" "$([ -d "$data_dir" ] && printf ok || printf missing)"
+    printf 'Config: %s %s\n' "$env_file" "$([ -f "$env_file" ] && printf ok || printf missing)"
+    printf 'DNS: host network port 53 tcp/udp\n'
+}
+
+updates_view() {
+    status_view
+    printf '\nUpdate check\n'
+    if command -v curl >/dev/null 2>&1; then
+        digest="$(curl -fsSL 'https://registry.hub.docker.com/v2/repositories/sliamb/paopaodns/tags/latest' \
+            | sed -n 's/.*"digest":"\([^"]*\)".*/\1/p' | head -1 || true)"
+        updated="$(curl -fsSL 'https://registry.hub.docker.com/v2/repositories/sliamb/paopaodns/tags/latest' \
+            | sed -n 's/.*"last_updated":"\([^"]*\)".*/\1/p' | head -1 || true)"
+        printf 'Remote image: sliamb/paopaodns:latest\n'
+        printf 'Remote digest: %s\n' "${digest:-unable to check}"
+        printf 'Last updated: %s\n' "${updated:-unable to check}"
+    else
+        printf 'curl missing, unable to check remote image.\n'
+    fi
+    printf 'Action: check only, no image pull and no restart\n'
+}
+
+menu() {
+    while :; do
+        status_view
+        cat <<'EOF'
+
+1) Start PaoPaoDNS
+2) Stop PaoPaoDNS
+3) Restart PaoPaoDNS
+4) Follow logs
+5) Check latest image
+6) Show env config
+7) Switch to mini-ppdns fallback
+0) Back
+
+EOF
+        printf 'Choose: '
+        read -r choice || exit 0
+        case "$(printf '%s' "$choice" | tr -d '\r')" in
+            1) systemctl start "$service_name" ;;
+            2) systemctl stop "$service_name" || true ;;
+            3) systemctl restart "$service_name" ;;
+            4) journalctl -u "$service_name" -n 120 -f ;;
+            5) updates_view ;;
+            6) sed -n '1,120p' "$env_file" ;;
+            7) mini-ppdns-manager switch ;;
+            0) exit 0 ;;
+            *) printf 'Unknown choice: %s\n' "$choice" ;;
+        esac
+        if [ "$choice" != "4" ]; then
+            printf '\nPress Enter to continue...'
+            read -r _ || exit 0
+        fi
+    done
+}
+
+case "${1:-menu}" in
+    menu) menu ;;
+    status) status_view ;;
+    start) systemctl start "$service_name" ;;
+    stop) systemctl stop "$service_name" || true ;;
+    restart) systemctl restart "$service_name" ;;
+    logs) journalctl -u "$service_name" -n 120 -f ;;
+    updates) updates_view ;;
+    *) printf 'Usage: paopaodns-manager [menu|status|start|stop|restart|logs|updates]\n'; exit 1 ;;
+esac

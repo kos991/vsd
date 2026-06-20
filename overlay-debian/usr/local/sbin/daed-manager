@@ -1,0 +1,109 @@
+#!/bin/sh
+set -eu
+
+service_name="daed.service"
+binary_path="/usr/bin/daed"
+config_path="/etc/daed"
+log_unit="daed.service"
+
+is_installed() { [ -x "$binary_path" ]; }
+has_config() { [ -d "$config_path" ]; }
+
+version_text() {
+    if is_installed; then
+        "$binary_path" --version 2>/dev/null | head -1 || printf 'installed'
+    else
+        printf 'not installed'
+    fi
+}
+
+service_state() {
+    systemctl is-active --quiet "$service_name" && printf 'running' || printf 'stopped'
+}
+
+boot_state() {
+    systemctl is-enabled --quiet "$service_name" && printf 'enabled' || printf 'disabled'
+}
+
+latest_daed_tag() {
+    curl -fsSL 'https://api.github.com/repos/daeuniverse/daed/releases?per_page=20' \
+        | awk '
+          /"tag_name":/ { tag=$0; sub(/^.*"tag_name":[[:space:]]*"/, "", tag); sub(/".*$/, "", tag) }
+          /"name":[[:space:]]*"daed-linux-/ { if (tag ~ /^v[0-9]/) { print tag; exit } }'
+}
+
+status_view() {
+    printf '\ndaed status\n\n'
+    is_installed && printf 'Install: installed\n' || printf 'Install: missing\n'
+    printf 'Version: %s\n' "$(version_text)"
+    printf 'Service: %s\n' "$(service_state)"
+    printf 'Boot: %s\n' "$(boot_state)"
+    has_config && printf 'Config: ready\n' || printf 'Config: missing\n'
+    printf 'Dashboard: http://<gateway-ip>:2023\n'
+}
+
+details_view() {
+    status_view
+    printf '\nDetails\n'
+    printf 'Binary: %s %s\n' "$binary_path" "$(is_installed && printf ok || printf missing)"
+    printf 'Systemd: %s\n' "$service_name"
+    printf 'Config dir: %s %s\n' "$config_path" "$(has_config && printf ok || printf missing)"
+    printf 'GeoIP: /etc/daed/geoip.dat %s\n' "$([ -r /etc/daed/geoip.dat ] && printf ok || printf missing)"
+    printf 'Geosite: /etc/daed/geosite.dat %s\n' "$([ -r /etc/daed/geosite.dat ] && printf ok || printf missing)"
+}
+
+updates_view() {
+    status_view
+    printf '\nUpdate check\nLatest daed: '
+    if tag="$(latest_daed_tag 2>/dev/null)" && [ -n "$tag" ]; then
+        printf '%s\n' "$tag"
+    else
+        printf 'unable to check\n'
+    fi
+    printf 'Action: check only, no binary replacement\n'
+}
+
+menu() {
+    while :; do
+        status_view
+        cat <<'EOF'
+
+1) Start daed
+2) Stop daed
+3) Restart daed
+4) Follow logs
+5) Check updates
+6) Details
+0) Back
+
+EOF
+        printf 'Choose: '
+        read -r choice || exit 0
+        case "$(printf '%s' "$choice" | tr -d '\r')" in
+            1) systemctl start "$service_name" ;;
+            2) systemctl stop "$service_name" || true ;;
+            3) systemctl restart "$service_name" ;;
+            4) journalctl -u "$log_unit" -n 120 -f ;;
+            5) updates_view ;;
+            6) details_view ;;
+            0) exit 0 ;;
+            *) printf 'Unknown choice: %s\n' "$choice" ;;
+        esac
+        if [ "$choice" != "4" ]; then
+            printf '\nPress Enter to continue...'
+            read -r _ || exit 0
+        fi
+    done
+}
+
+case "${1:-menu}" in
+    menu) menu ;;
+    status) status_view ;;
+    start) systemctl start "$service_name" ;;
+    stop) systemctl stop "$service_name" || true ;;
+    restart) systemctl restart "$service_name" ;;
+    logs) journalctl -u "$log_unit" -n 120 -f ;;
+    updates) updates_view ;;
+    details) details_view ;;
+    *) printf 'Usage: daed-manager [menu|status|start|stop|restart|logs|updates|details]\n'; exit 1 ;;
+esac
