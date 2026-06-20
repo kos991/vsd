@@ -4,9 +4,6 @@ set -eu
 done_file="/etc/dae-gateway-firstboot.done"
 tcp_conf="/etc/sysctl.d/92-tcp-tuning.conf"
 one_arm_conf="/etc/sysctl.d/91-one-arm-gateway.conf"
-DAED_FIRSTBOOT_PID=""
-DAED_HOME="/root"
-DAED_DATA_HOME="/root/.local/share"
 
 prompt_msg() {
     printf '%s' "$*" >&2
@@ -38,25 +35,6 @@ prompt_secret() {
             return 0
         fi
         printf 'The two values did not match or were empty. Try again.\n' >&2
-    done
-}
-
-strong_password() {
-    password="$1"
-    [ "${#password}" -ge 6 ] || return 1
-    printf '%s' "$password" | grep -q '[A-Za-z]' || return 1
-    printf '%s' "$password" | grep -q '[0-9]' || return 1
-}
-
-prompt_strong_secret() {
-    label="$1"
-    while :; do
-        password="$(prompt_secret "$label")"
-        if strong_password "$password"; then
-            printf '%s\n' "$password"
-            return 0
-        fi
-        printf 'Password is too weak: use at least 6 characters with both letters and numbers.\n' >&2
     done
 }
 
@@ -137,149 +115,9 @@ EOF
 }
 
 configure_root_password() {
-    password="$(prompt_strong_secret 'new root password')"
+    password="$(prompt_secret 'new root password')"
     printf 'root:%s\n' "$password" | chpasswd
     passwd -u root >/dev/null 2>&1 || true
-}
-
-configure_daed_credentials() {
-    username="$(prompt_default 'daed admin username' 'admin')"
-    password="$(prompt_strong_secret 'daed admin password')"
-    umask 077
-    cat >/etc/daed/firstboot-admin.env <<EOF
-DAED_ADMIN_USERNAME='${username}'
-DAED_ADMIN_PASSWORD='${password}'
-EOF
-    printf 'Saved daed firstboot credential hint to /etc/daed/firstboot-admin.env.\n'
-    DAED_ADMIN_USERNAME="$username"
-    DAED_ADMIN_PASSWORD="$password"
-}
-
-json_escape() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-}
-
-daed_api_ready() {
-    curl -fsS --connect-timeout 1 --max-time 2 \
-        -H 'Content-Type: application/json' \
-        --data '{"query":"query { numberUsers }"}' \
-        http://127.0.0.1:2023/graphql >/dev/null 2>&1
-}
-
-wait_daed_graphql() {
-    i=0
-    while [ "$i" -lt 30 ]; do
-        if daed_api_ready; then
-            return 0
-        fi
-        i=$((i + 1))
-        sleep 1
-    done
-    return 1
-}
-
-start_firstboot_daed() {
-    if daed_api_ready; then
-        return 0
-    fi
-
-    if [ ! -x /usr/bin/daed ]; then
-        printf '/usr/bin/daed is missing or not executable.\n'
-        return 1
-    fi
-
-    mkdir -p /var/log/daed "$DAED_DATA_HOME"
-    printf 'Starting temporary daed API for firstboot setup'
-    HOME="$DAED_HOME" XDG_DATA_HOME="$DAED_DATA_HOME" /usr/bin/daed run -c /etc/daed/ --api-only \
-        >/var/log/daed/firstboot-daed.log \
-        2>/var/log/daed/firstboot-daed.err &
-    DAED_FIRSTBOOT_PID="$!"
-
-    i=0
-    while [ "$i" -lt 30 ]; do
-        if daed_api_ready; then
-            printf '\n'
-            return 0
-        fi
-        if ! kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null; then
-            printf '\ndaed exited before the API became ready.\n'
-            tail -n 40 /var/log/daed/firstboot-daed.err 2>/dev/null || true
-            return 1
-        fi
-        printf '.'
-        i=$((i + 1))
-        sleep 1
-    done
-
-    printf '\ndaed API did not become ready within 30 seconds.\n'
-    tail -n 40 /var/log/daed/firstboot-daed.err 2>/dev/null || true
-    return 1
-}
-
-stop_firstboot_daed() {
-    if [ -n "${DAED_FIRSTBOOT_PID:-}" ]; then
-        if kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null; then
-            kill "$DAED_FIRSTBOOT_PID" 2>/dev/null || true
-            i=0
-            while kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null && [ "$i" -lt 5 ]; do
-                sleep 1
-                i=$((i + 1))
-            done
-            if kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null; then
-                kill -KILL "$DAED_FIRSTBOOT_PID" 2>/dev/null || true
-            fi
-        fi
-        wait "$DAED_FIRSTBOOT_PID" 2>/dev/null || true
-    fi
-    DAED_FIRSTBOOT_PID=""
-}
-
-cleanup_firstboot() {
-    stop_firstboot_daed
-}
-
-trap cleanup_firstboot EXIT INT TERM
-
-create_daed_admin() {
-    username="${DAED_ADMIN_USERNAME:-}"
-    password="${DAED_ADMIN_PASSWORD:-}"
-    [ -n "$username" ] && [ -n "$password" ] || return 0
-
-    printf 'Creating the first daed admin user...\n'
-
-    if ! start_firstboot_daed; then
-        printf 'daed API is not ready. Use the saved credentials on the dashboard setup page if needed.\n'
-        stop_firstboot_daed
-        return 0
-    fi
-
-    if ! wait_daed_graphql; then
-        printf 'daed API is not ready. Use the saved credentials on the dashboard setup page if needed.\n'
-        stop_firstboot_daed
-        return 0
-    fi
-
-    user_json="$(json_escape "$username")"
-    pass_json="$(json_escape "$password")"
-    payload='{"query":"mutation CreateUser($username: String!, $password: String!) { createUser(username: $username, password: $password) }","variables":{"username":"'"$user_json"'","password":"'"$pass_json"'"}}'
-
-    response="$(curl -fsS --connect-timeout 2 --max-time 10 -H 'Content-Type: application/json' --data "$payload" http://127.0.0.1:2023/graphql 2>/tmp/daed-firstboot-create-user.err || true)"
-    if printf '%s' "$response" | grep -q '"errors"'; then
-        printf 'daed createUser returned an error. Continue on the dashboard setup page if the user was not created.\n'
-        printf '%s\n' "$response" >/etc/daed/firstboot-create-user.response
-        chmod 600 /etc/daed/firstboot-create-user.response
-        stop_firstboot_daed
-        return 0
-    fi
-
-    if printf '%s' "$response" | grep -Eq '"createUser"[[:space:]]*:[[:space:]]*"[^" ]+"'; then
-        printf 'Created the daed admin user through GraphQL createUser.\n'
-    else
-        printf 'daed createUser did not confirm success. Continue on the dashboard setup page if login fails.\n'
-        printf '%s\n' "$response" >/etc/daed/firstboot-create-user.response
-        chmod 600 /etc/daed/firstboot-create-user.response
-    fi
-    stop_firstboot_daed
 }
 
 configure_tcp_prompt() {
@@ -308,22 +146,21 @@ run_firstboot() {
 
 daed Alpine Gateway firstboot wizard
 
-This wizard sets the root login password, daed admin credentials, gateway sysctl,
-and optional BBR/fq TCP tuning before the dashboard starts.
+This wizard sets the root login password, gateway sysctl, and optional BBR/fq
+TCP tuning before the dashboard starts.
 EOF
 
     configure_root_password
-    configure_daed_credentials
     write_one_arm_gateway_sysctl
     configure_tcp_prompt
     sysctl --system >/dev/null 2>&1 || true
-    create_daed_admin
 
     date -u '+%Y-%m-%dT%H:%M:%SZ' >"$done_file"
     chmod 600 "$done_file"
 
     printf '\nFirstboot wizard completed.\n'
     printf 'Open daed dashboard: http://<gateway-ip>:2023\n'
+    printf 'Create the daed admin user in the dashboard setup page.\n'
     printf 'After connectivity is confirmed, point client gateway and DNS to this VM address.\n'
 }
 

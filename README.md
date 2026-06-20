@@ -6,7 +6,7 @@ This template builds a lightweight Alpine Linux gateway OVA with:
 - Alpine `linux-virt` selected for VMware-friendly eBPF/BTF support.
 - `geoip.dat` and `geosite.dat` installed with daed for split rules.
 - `mini-ppdns` installed as a native OpenRC DNS failover service.
-- Firstboot console setup for root password, daed admin credentials, and TCP tuning.
+- Firstboot console setup for the root password and TCP tuning.
 - No Docker, no SMbox, no Singbox, and no full PaoPaoDNS container stack.
 
 The intended workflow is simple: push this repository to GitHub, open **Actions**, run **Build Alpine gateway OVA**, and download the generated OVA artifact.
@@ -33,11 +33,16 @@ Workflow inputs:
 The image no longer bakes in a default `root` password. On first boot, the console wizard asks for:
 
 - root password
-- daed admin username and password
 - whether to enable BBR/fq TCP optimization
 - bandwidth, latency, and memory values for Omnitt-style TCP buffer sizing
 
-Passwords must contain numbers and letters and be no less than 6 characters. The wizard writes `/etc/dae-gateway-firstboot.done` after completion.
+The root password only needs to be non-empty and entered the same way twice. The wizard writes `/etc/dae-gateway-firstboot.done` after completion.
+
+Create the daed administrator in the official daed dashboard after firstboot:
+
+```text
+http://<gateway-ip>:2023
+```
 
 Reset the wizard if needed:
 
@@ -65,7 +70,7 @@ Inside the generated VM:
 - `/var/log/daed/`
 - `/var/log/mini-ppdns/`
 
-Open the dashboard after firstboot:
+Open the dashboard after firstboot and create the daed administrator there:
 
 ```text
 http://<gateway-ip>:2023
