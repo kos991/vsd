@@ -156,6 +156,7 @@ SETUP
   local virt_args
   virt_args=(
     -a "${QCOW_IMAGE}"
+    --network
     --mkdir /root/dae-gateway-build \
     --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/root/dae-gateway-build/install-daed-debian.sh" \
     --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/root/dae-gateway-build/install-mini-ppdns.sh" \
