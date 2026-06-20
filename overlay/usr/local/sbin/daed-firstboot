@@ -4,6 +4,7 @@ set -eu
 done_file="/etc/dae-gateway-firstboot.done"
 tcp_conf="/etc/sysctl.d/92-tcp-tuning.conf"
 one_arm_conf="/etc/sysctl.d/91-one-arm-gateway.conf"
+DAED_FIRSTBOOT_PID=""
 
 prompt_msg() {
     printf '%s' "$*" >&2
@@ -14,19 +15,27 @@ prompt_secret() {
     while :; do
         prompt_msg "$label: "
         stty -echo 2>/dev/null || true
-        read -r first || return 1
+        if ! read -r first; then
+            stty echo 2>/dev/null || true
+            printf '\n' >&2
+            return 1
+        fi
         stty echo 2>/dev/null || true
         printf '\n' >&2
-        prompt_msg "Confirm $label: "
+        prompt_msg "再次输入 $label: "
         stty -echo 2>/dev/null || true
-        read -r second || return 1
+        if ! read -r second; then
+            stty echo 2>/dev/null || true
+            printf '\n' >&2
+            return 1
+        fi
         stty echo 2>/dev/null || true
         printf '\n' >&2
         if [ "$first" = "$second" ] && [ -n "$first" ]; then
             printf '%s\n' "$first"
             return 0
         fi
-        printf 'Inputs did not match or were empty. Try again.\n' >&2
+        printf '两次输入不一致或为空，请重新输入。\n' >&2
     done
 }
 
@@ -45,7 +54,7 @@ prompt_strong_secret() {
             printf '%s\n' "$password"
             return 0
         fi
-        printf 'too weak password; should contain numbers and letters, and no less than 6 in length\n' >&2
+        printf '密码强度不足：至少 6 位，并且必须同时包含字母和数字。\n' >&2
     done
 }
 
@@ -57,6 +66,26 @@ prompt_default() {
     value="$(printf '%s' "$value" | tr -d '\r')"
     [ -n "$value" ] || value="$default"
     printf '%s\n' "$value"
+}
+
+is_uint() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+prompt_uint_default() {
+    label="$1"
+    default="$2"
+    while :; do
+        value="$(prompt_default "$label" "$default")"
+        if is_uint "$value" && [ "$value" -gt 0 ]; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+        printf '%s 必须是正整数。\n' "$label" >&2
+    done
 }
 
 write_one_arm_gateway_sysctl() {
@@ -106,20 +135,20 @@ EOF
 }
 
 configure_root_password() {
-    password="$(prompt_strong_secret 'New root password')"
+    password="$(prompt_strong_secret '新的 root 密码')"
     printf 'root:%s\n' "$password" | chpasswd
     passwd -u root >/dev/null 2>&1 || true
 }
 
 configure_daed_credentials() {
-    username="$(prompt_default 'daed admin username' 'admin')"
-    password="$(prompt_strong_secret 'daed admin password')"
+    username="$(prompt_default 'daed 管理员用户名' 'admin')"
+    password="$(prompt_strong_secret 'daed 管理员密码')"
     umask 077
     cat >/etc/daed/firstboot-admin.env <<EOF
 DAED_ADMIN_USERNAME='${username}'
 DAED_ADMIN_PASSWORD='${password}'
 EOF
-    printf 'Saved daed firstboot admin credentials hint in /etc/daed/firstboot-admin.env.\n'
+    printf '已保存 daed 首次启动管理员凭据提示到 /etc/daed/firstboot-admin.env。\n'
     DAED_ADMIN_USERNAME="$username"
     DAED_ADMIN_PASSWORD="$password"
 }
@@ -128,10 +157,17 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+daed_api_ready() {
+    curl -fsS --connect-timeout 1 --max-time 2 \
+        -H 'Content-Type: application/json' \
+        --data '{"query":"query { numberUsers }"}' \
+        http://127.0.0.1:2023/graphql >/dev/null 2>&1
+}
+
 wait_daed_graphql() {
     i=0
     while [ "$i" -lt 30 ]; do
-        if curl -fsS http://127.0.0.1:2023/ >/dev/null 2>&1; then
+        if daed_api_ready; then
             return 0
         fi
         i=$((i + 1))
@@ -140,16 +176,84 @@ wait_daed_graphql() {
     return 1
 }
 
+start_firstboot_daed() {
+    if daed_api_ready; then
+        return 0
+    fi
+
+    if [ ! -x /usr/bin/daed ]; then
+        printf '/usr/bin/daed 不存在或不可执行。\n'
+        return 1
+    fi
+
+    mkdir -p /var/log/daed
+    printf '正在启动临时 daed API，用于完成首次初始化'
+    XDG_DATA_HOME=/etc /usr/bin/daed run -c /etc/daed/ --api-only \
+        >/var/log/daed/firstboot-daed.log \
+        2>/var/log/daed/firstboot-daed.err &
+    DAED_FIRSTBOOT_PID="$!"
+
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if daed_api_ready; then
+            printf '\n'
+            return 0
+        fi
+        if ! kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null; then
+            printf '\ndaed 在 API 就绪前已退出。\n'
+            tail -n 40 /var/log/daed/firstboot-daed.err 2>/dev/null || true
+            return 1
+        fi
+        printf '.'
+        i=$((i + 1))
+        sleep 1
+    done
+
+    printf '\ndaed API 在 30 秒内未就绪。\n'
+    tail -n 40 /var/log/daed/firstboot-daed.err 2>/dev/null || true
+    return 1
+}
+
+stop_firstboot_daed() {
+    if [ -n "${DAED_FIRSTBOOT_PID:-}" ]; then
+        if kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null; then
+            kill "$DAED_FIRSTBOOT_PID" 2>/dev/null || true
+            i=0
+            while kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null && [ "$i" -lt 5 ]; do
+                sleep 1
+                i=$((i + 1))
+            done
+            if kill -0 "$DAED_FIRSTBOOT_PID" 2>/dev/null; then
+                kill -KILL "$DAED_FIRSTBOOT_PID" 2>/dev/null || true
+            fi
+        fi
+        wait "$DAED_FIRSTBOOT_PID" 2>/dev/null || true
+    fi
+    DAED_FIRSTBOOT_PID=""
+}
+
+cleanup_firstboot() {
+    stop_firstboot_daed
+}
+
+trap cleanup_firstboot EXIT INT TERM
+
 create_daed_admin() {
     username="${DAED_ADMIN_USERNAME:-}"
     password="${DAED_ADMIN_PASSWORD:-}"
     [ -n "$username" ] && [ -n "$password" ] || return 0
 
-    printf 'Starting daed to create the first admin user...\n'
-    rc-service daed start >/dev/null 2>&1 || true
+    printf '正在创建 daed 首个管理员用户...\n'
+
+    if ! start_firstboot_daed; then
+        printf 'daed API 未就绪。请在仪表盘初始化页面使用已保存的凭据。\n'
+        stop_firstboot_daed
+        return 0
+    fi
 
     if ! wait_daed_graphql; then
-        printf 'daed API did not become ready. Use the saved credentials in the dashboard setup page.\n'
+        printf 'daed API 未就绪。请在仪表盘初始化页面使用已保存的凭据。\n'
+        stop_firstboot_daed
         return 0
     fi
 
@@ -157,49 +261,53 @@ create_daed_admin() {
     pass_json="$(json_escape "$password")"
     payload='{"query":"mutation CreateUser($username: String!, $password: String!) { createUser(username: $username, password: $password) }","variables":{"username":"'"$user_json"'","password":"'"$pass_json"'"}}'
 
-    response="$(curl -fsS -H 'Content-Type: application/json' --data "$payload" http://127.0.0.1:2023/graphql 2>/tmp/daed-firstboot-create-user.err || true)"
+    response="$(curl -fsS --connect-timeout 2 --max-time 10 -H 'Content-Type: application/json' --data "$payload" http://127.0.0.1:2023/graphql 2>/tmp/daed-firstboot-create-user.err || true)"
     if printf '%s' "$response" | grep -q '"errors"'; then
-        printf 'daed createUser returned an error. Use the dashboard setup page if the user was not created.\n'
+        printf 'daed createUser 返回错误。如果用户未创建，请在仪表盘初始化页面继续处理。\n'
         printf '%s\n' "$response" >/etc/daed/firstboot-create-user.response
         chmod 600 /etc/daed/firstboot-create-user.response
+        stop_firstboot_daed
         return 0
     fi
 
-    if [ -n "$response" ]; then
-        printf 'daed admin user created through GraphQL createUser.\n'
+    if printf '%s' "$response" | grep -Eq '"createUser"[[:space:]]*:[[:space:]]*"[^" ]+"'; then
+        printf '已通过 GraphQL createUser 创建 daed 管理员用户。\n'
     else
-        printf 'daed createUser returned no response. Use the dashboard setup page if login fails.\n'
+        printf 'daed createUser 未确认成功。如果无法登录，请在仪表盘初始化页面继续处理。\n'
+        printf '%s\n' "$response" >/etc/daed/firstboot-create-user.response
+        chmod 600 /etc/daed/firstboot-create-user.response
     fi
+    stop_firstboot_daed
 }
 
 configure_tcp_prompt() {
-    printf 'Enable BBR TCP optimization? [Y/n]: '
+    printf '是否启用 BBR TCP 优化？[Y/n]: '
     read -r answer || answer=""
     answer="$(printf '%s' "$answer" | tr -d '\r')"
     case "$answer" in
         n|N|no|NO) return 0 ;;
     esac
 
-    bandwidth="$(prompt_default 'Line bandwidth in Mbps' '1000')"
-    latency="$(prompt_default 'Typical latency in ms' '100')"
+    bandwidth="$(prompt_uint_default '线路带宽 Mbps' '1000')"
+    latency="$(prompt_uint_default '典型延迟 ms' '100')"
     memory="$(awk '/MemTotal:/ { printf "%d", $2 / 1024 }' /proc/meminfo 2>/dev/null || printf '1024')"
-    memory="$(prompt_default 'Memory size in MB' "$memory")"
+    memory="$(prompt_uint_default '内存大小 MB' "$memory")"
     write_tcp_tuning "$bandwidth" "$latency" "$memory"
     sysctl -p "$tcp_conf" >/dev/null 2>&1 || true
 }
 
 run_firstboot() {
     if [ -f "$done_file" ]; then
-        printf 'Firstboot already completed. Run "daed-firstboot reset" to run again.\n'
+        printf '首次启动向导已经完成。如需重新运行，请执行 "daed-firstboot reset"。\n'
         return 0
     fi
 
     cat <<'EOF'
 
-daed Alpine Gateway firstboot
+daed Alpine Gateway 首次启动向导
 
-This wizard sets root login, daed admin credentials, gateway sysctl,
-and optional BBR/fq TCP tuning before the dashboard starts.
+本向导会在仪表盘启动前设置 root 登录密码、daed 管理员凭据、网关 sysctl，
+并可选择启用 BBR/fq TCP 优化。
 
 EOF
 
@@ -212,22 +320,20 @@ EOF
 
     date -u '+%Y-%m-%dT%H:%M:%SZ' >"$done_file"
     chmod 600 "$done_file"
-    rc-service sshd restart >/dev/null 2>&1 || true
-    rc-service daed restart >/dev/null 2>&1 || true
 
-    printf '\nFirstboot completed.\n'
-    printf 'Open daed dashboard: http://<gateway-ip>:2023\n'
-    printf 'Client gateway/DNS can point to this VM address after connectivity is verified.\n'
+    printf '\n首次启动向导已完成。\n'
+    printf '打开 daed 仪表盘：http://<网关IP>:2023\n'
+    printf '连通性确认后，客户端网关和 DNS 可以指向这台 VM 的地址。\n'
 }
 
 reset_firstboot() {
     rm -f "$done_file"
-    printf 'Firstboot marker removed. Run "daed-firstboot run" or reboot.\n'
+    printf '首次启动完成标记已删除。请执行 "daed-firstboot run" 或重启。\n'
 }
 
 case "${1:-run}" in
     run) run_firstboot ;;
     reset) reset_firstboot ;;
     write-tcp) write_tcp_tuning "${2:-1000}" "${3:-100}" "${4:-1024}" ;;
-    *) printf 'Usage: daed-firstboot [run|reset|write-tcp]\n'; exit 1 ;;
+    *) printf '用法：daed-firstboot [run|reset|write-tcp]\n'; exit 1 ;;
 esac

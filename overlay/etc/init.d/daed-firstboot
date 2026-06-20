@@ -7,8 +7,8 @@ keyword -timeout
 
 depend() {
     need localmount
-    after bootmisc gateway-network-init
-    before daed sshd
+    after bootmisc gateway-network-init check-ebpf mini-ppdns dae-qos sshd
+    before daed
 }
 
 start() {

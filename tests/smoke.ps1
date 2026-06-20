@@ -42,6 +42,23 @@ function Assert-TextOrder {
     }
 }
 
+function Assert-FileContainsUtf8Text {
+    param(
+        [string]$Path,
+        [string]$Base64Text,
+        [string]$Message
+    )
+    $full = Join-Path $Root $Path
+    if (-not (Test-Path -LiteralPath $full)) {
+        $failures.Add("Missing file: $Path")
+        return
+    }
+    $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($full))
+    $pattern = [regex]::Escape([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Base64Text)))
+    if ($text -notmatch $pattern) {
+        $failures.Add($Message)
+    }
+}
 function Assert-FileDoesNotContain {
     param(
         [string]$Path,
@@ -171,18 +188,42 @@ Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'Details' 'daed manage
 Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'https://api.github.com/repos/daeuniverse/daed/releases' 'daed manager must check the latest daed release.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'start_service' 'daed manager must wrap start so stale OpenRC state can be recovered.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'rc-service "\$service_name" zap' 'daed manager must clear stale OpenRC started state before retrying a stopped service.'
-Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'too weak password' 'firstboot must explain daed password strength requirements.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5a+G56CB5by65bqm5LiN6Laz' 'firstboot must explain daed password strength requirements in Chinese.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'prompt_msg' 'firstboot must print interactive prompts outside command substitution.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '>&2' 'firstboot interactive prompts must be visible while captured values are returned on stdout.'
-Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'New root password' 'firstboot must visibly prompt for the root password.'
-Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'Confirm \$label' 'firstboot must visibly prompt for password confirmation.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5paw55qEIHJvb3Qg5a+G56CB' 'firstboot must visibly prompt for the root password in Chinese.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5YaN5qyh6L6T5YWlICRsYWJlbA==' 'firstboot must visibly prompt for password confirmation in Chinese.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' 'ZGFlZCBBbHBpbmUgR2F0ZXdheSDpppbmrKHlkK/liqjlkJHlr7w=' 'firstboot wizard header must be Chinese.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5piv5ZCm5ZCv55SoIEJCUiBUQ1Ag5LyY5YyW' 'firstboot TCP tuning prompt must be Chinese.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5q2j5Zyo5Yib5bu6IGRhZWQg6aaW5Liq566h55CG5ZGY55So5oi3' 'firstboot daed admin creation status must be Chinese.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '6aaW5qyh5ZCv5Yqo5ZCR5a+85bey5a6M5oiQ' 'firstboot completion message must be Chinese.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'if ! read -r first' 'firstboot must restore terminal echo if password input is interrupted.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'if ! read -r second' 'firstboot must restore terminal echo if password confirmation is interrupted.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'write_tcp_tuning' 'firstboot must generate TCP tuning settings.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'net.ipv4.tcp_congestion_control=bbr' 'firstboot must enable BBR when TCP optimization is selected.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'net.core.default_qdisc=fq' 'firstboot must enable fq when TCP optimization is selected.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'createUser' 'firstboot must try to create the daed admin user through GraphQL.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'http://127\.0\.0\.1:2023/graphql' 'firstboot must use the local daed GraphQL endpoint.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'start_firstboot_daed' 'firstboot must start daed directly for setup instead of recursing into OpenRC.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '--api-only' 'firstboot must start a temporary API-only daed process so user creation does not depend on transparent proxy startup.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'numberUsers' 'firstboot readiness must probe GraphQL instead of depending on the web UI root route.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'http://127\.0\.0\.1:2023/graphql' 'firstboot readiness must target the local GraphQL endpoint.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'firstboot-daed\.err' 'firstboot must keep temporary daed startup errors visible for diagnosis.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'connect-timeout' 'firstboot curl calls must have timeouts so setup cannot hang indefinitely.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'trap cleanup_firstboot EXIT INT TERM' 'firstboot must clean up a temporary daed process on exit or interruption.'
+Assert-TextOrder 'overlay/usr/local/sbin/daed-firstboot' 'stop_firstboot_daed()' 'trap cleanup_firstboot EXIT INT TERM' 'firstboot must install cleanup trap after the cleanup function chain is defined.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'kill -KILL "\$DAED_FIRSTBOOT_PID"' 'firstboot must force-stop a temporary daed process if graceful shutdown does not finish.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'grep -Eq' 'firstboot must use an explicit extended regex for GraphQL token matching on Alpine.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '"createUser"\[\[:space:\]\]\*:\[\[:space:\]\]\*"\[\^" \]\+"' 'firstboot must only report daed admin creation after GraphQL confirms createUser returned a token string.'
+Assert-FileDoesNotContain 'overlay/usr/local/sbin/daed-firstboot' 'rc-service daed (start|restart)' 'firstboot must not call rc-service daed while it is ordered before daed.'
+Assert-FileDoesNotContain 'overlay/usr/local/sbin/daed-firstboot' 'rc-service sshd' 'firstboot must not restart sshd and risk blocking the recovery path.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '/etc/dae-gateway-firstboot.done' 'firstboot must write a completion marker.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'prompt_uint_default' 'firstboot must validate numeric TCP tuning input instead of exiting on shell arithmetic errors.'
+Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5b+F6aG75piv5q2j5pW05pWw' 'firstboot must explain invalid numeric TCP tuning input in Chinese.'
 Assert-FileContains 'overlay/etc/init.d/daed-firstboot' 'keyword -timeout' 'firstboot OpenRC service must not time out while waiting for console input.'
+Assert-FileContains 'overlay/etc/init.d/daed-firstboot' 'after bootmisc gateway-network-init check-ebpf mini-ppdns dae-qos sshd' 'firstboot must run after daed prerequisites and sshd so SSH remains available for recovery.'
+Assert-FileContains 'overlay/etc/init.d/daed-firstboot' 'before daed' 'firstboot must finish before the normal daed service starts.'
+Assert-FileDoesNotContain 'overlay/etc/init.d/daed-firstboot' 'before daed sshd' 'firstboot must not block sshd while waiting for interactive setup.'
 Assert-FileContains 'overlay/usr/local/sbin/mini-ppdns-manager' 'mini-ppdns status' 'mini-ppdns manager must show a concise mini-ppdns status view.'
 Assert-FileContains 'overlay/usr/local/sbin/mini-ppdns-manager' 'Details' 'mini-ppdns manager must keep technical checks behind a details command.'
 Assert-FileContains 'overlay/usr/local/sbin/mini-ppdns-manager' 'https://raw.githubusercontent.com/kkkgo/mini-ppdns' 'mini-ppdns manager must probe the upstream binary.'
