@@ -227,7 +227,7 @@ package_ova() {
     "${RAW_CAPACITY_BYTES}"
 
   (cd "${DIST_DIR}" && tar -cf "$(basename "${OVA_FILE}")" "$(basename "${OVF_FILE}")" "$(basename "${VMDK_IMAGE}")")
-  sha256sum "${OVA_FILE}" "${VMDK_IMAGE}" "${OVF_FILE}" >"${DIST_DIR}/${IMAGE_NAME}.sha256"
+  sha256sum "${OVA_FILE}" >"${DIST_DIR}/${IMAGE_NAME}.sha256"
 }
 
 main() {

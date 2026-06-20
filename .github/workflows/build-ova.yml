@@ -123,7 +123,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: daed-alpine-gateway-ova
-          path: ${{ github.workspace }}/dist
+          path: ${{ github.workspace }}/dist/*.ova
           if-no-files-found: error
           retention-days: 14
 
