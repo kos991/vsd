@@ -62,6 +62,13 @@ cat >"${SETUP_SCRIPT}" <<SETUP
 #!/usr/bin/env bash
 set -euxo pipefail
 
+cat >>/etc/hosts <<'EOF'
+151.101.2.132 deb.debian.org security.debian.org
+151.101.66.132 deb.debian.org security.debian.org
+151.101.130.132 deb.debian.org security.debian.org
+151.101.194.132 deb.debian.org security.debian.org
+EOF
+
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   apparmor \

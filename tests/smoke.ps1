@@ -87,6 +87,7 @@ Assert-FileContains 'scripts/build-debian-ova.sh' '-a "\$\{QCOW_IMAGE\}"' 'Debia
 Assert-FileContains 'scripts/build-debian-ova.sh' '--network' 'Debian build must explicitly enable libguestfs network access for apt setup.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--delete /etc/resolv\.conf' 'Debian build must remove the cloud resolv.conf symlink before writing build DNS.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--write "/etc/resolv\.conf:nameserver 1\.1\.1\.1' 'Debian build must seed resolv.conf before apt runs under libguestfs.'
+Assert-FileContains 'scripts/build-debian-ova.sh' '151\.101\.2\.132 deb\.debian\.org security\.debian\.org' 'Debian build must include a build-time hosts fallback for Debian mirrors.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--mkdir /root/dae-gateway-build' 'Debian build must create a persistent guest build staging directory.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--upload "\$\{SETUP_SCRIPT\}:/root/dae-gateway-build/setup-debian-gateway\.sh"' 'Debian build must upload the setup script to a fixed guest path.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--upload "\$\{PAOPAODNS_TAR\}:/root/dae-gateway-build/paopaodns\.tar"' 'Debian build must upload the preloaded PaoPaoDNS image to a fixed guest path.'
