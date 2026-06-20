@@ -5,24 +5,28 @@ done_file="/etc/dae-gateway-firstboot.done"
 tcp_conf="/etc/sysctl.d/92-tcp-tuning.conf"
 one_arm_conf="/etc/sysctl.d/91-one-arm-gateway.conf"
 
+prompt_msg() {
+    printf '%s' "$*" >&2
+}
+
 prompt_secret() {
     label="$1"
     while :; do
-        printf '%s: ' "$label"
+        prompt_msg "$label: "
         stty -echo 2>/dev/null || true
         read -r first || return 1
         stty echo 2>/dev/null || true
-        printf '\n'
-        printf 'Confirm %s: ' "$label"
+        printf '\n' >&2
+        prompt_msg "Confirm $label: "
         stty -echo 2>/dev/null || true
         read -r second || return 1
         stty echo 2>/dev/null || true
-        printf '\n'
+        printf '\n' >&2
         if [ "$first" = "$second" ] && [ -n "$first" ]; then
             printf '%s\n' "$first"
             return 0
         fi
-        printf 'Inputs did not match or were empty. Try again.\n'
+        printf 'Inputs did not match or were empty. Try again.\n' >&2
     done
 }
 
@@ -41,14 +45,14 @@ prompt_strong_secret() {
             printf '%s\n' "$password"
             return 0
         fi
-        printf 'too weak password; should contain numbers and letters, and no less than 6 in length\n'
+        printf 'too weak password; should contain numbers and letters, and no less than 6 in length\n' >&2
     done
 }
 
 prompt_default() {
     label="$1"
     default="$2"
-    printf '%s [%s]: ' "$label" "$default"
+    prompt_msg "$label [$default]: "
     read -r value || value=""
     value="$(printf '%s' "$value" | tr -d '\r')"
     [ -n "$value" ] || value="$default"
