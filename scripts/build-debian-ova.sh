@@ -161,7 +161,7 @@ SETUP
     virt_args+=(--upload "${PAOPAODNS_TAR}:/root/dae-gateway-build/paopaodns.tar")
   fi
 
-  virt_args+=(--run /root/dae-gateway-build/setup-debian-gateway.sh)
+  virt_args+=(--run-command "bash /root/dae-gateway-build/setup-debian-gateway.sh")
   virt-customize "${virt_args[@]}"
 }
 
