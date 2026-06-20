@@ -85,6 +85,7 @@ Assert-FileContains 'scripts/build-debian-ova.sh' 'qemu-img resize "\$\{QCOW_IMA
 Assert-FileContains 'scripts/build-debian-ova.sh' 'virt_args=\(' 'Debian build must assemble a single virt-customize transaction.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '-a "\$\{QCOW_IMAGE\}"' 'Debian build must customize the cloud image offline with libguestfs.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--network' 'Debian build must explicitly enable libguestfs network access for apt setup.'
+Assert-FileContains 'scripts/build-debian-ova.sh' '--delete /etc/resolv\.conf' 'Debian build must remove the cloud resolv.conf symlink before writing build DNS.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--write "/etc/resolv\.conf:nameserver 1\.1\.1\.1' 'Debian build must seed resolv.conf before apt runs under libguestfs.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--mkdir /root/dae-gateway-build' 'Debian build must create a persistent guest build staging directory.'
 Assert-FileContains 'scripts/build-debian-ova.sh' '--upload "\$\{SETUP_SCRIPT\}:/root/dae-gateway-build/setup-debian-gateway\.sh"' 'Debian build must upload the setup script to a fixed guest path.'

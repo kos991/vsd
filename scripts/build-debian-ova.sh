@@ -152,6 +152,7 @@ SETUP
     -a "${QCOW_IMAGE}"
     --network
     --mkdir /root/dae-gateway-build \
+    --delete /etc/resolv.conf \
     --write "/etc/resolv.conf:nameserver 1.1.1.1
 nameserver 8.8.8.8
 " \
