@@ -83,6 +83,8 @@ Assert-FileContains 'scripts/build-debian-ova.sh' 'cloud\.debian\.org/images/clo
 Assert-FileContains 'scripts/build-debian-ova.sh' 'debian-%s-genericcloud-amd64\.qcow2' 'Debian build must use the genericcloud amd64 image.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'qemu-img resize "\$\{QCOW_IMAGE\}" "\$\{DISK_SIZE\}"' 'Debian build must resize the cloud image to the requested disk size.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'virt-customize -a "\$\{QCOW_IMAGE\}"' 'Debian build must customize the cloud image offline with libguestfs.'
+Assert-FileContains 'scripts/build-debian-ova.sh' '--upload "\$\{SETUP_SCRIPT\}:/tmp/setup-debian-gateway\.sh"' 'Debian build must upload the setup script to a fixed guest path.'
+Assert-FileContains 'scripts/build-debian-ova.sh' '--upload "\$\{PAOPAODNS_TAR\}:/tmp/paopaodns\.tar"' 'Debian build must upload the preloaded PaoPaoDNS image to a fixed guest path.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'XANMOD_PACKAGE="\$\{XANMOD_PACKAGE:-linux-xanmod-x64v3\}"' 'Debian build must default to the XanMod x64v3 kernel.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'https://dl\.xanmod\.org/archive\.key' 'Debian build must register the official XanMod archive key.'
 Assert-FileContains 'scripts/build-debian-ova.sh' 'gpg --dearmor -o /etc/apt/keyrings/xanmod-archive-keyring\.gpg' 'Debian build must dearmor the XanMod key into the apt keyrings directory.'

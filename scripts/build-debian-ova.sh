@@ -148,13 +148,13 @@ SETUP
   chmod +x "${SETUP_SCRIPT}"
 
   virt-customize -a "${QCOW_IMAGE}" \
-    --copy-in "${ROOT_DIR}/scripts/install-daed-debian.sh:/tmp" \
-    --copy-in "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/tmp" \
-    --copy-in "${OVERLAY_TAR}:/tmp" \
-    --copy-in "${SETUP_SCRIPT}:/tmp"
+    --upload "${ROOT_DIR}/scripts/install-daed-debian.sh:/tmp/install-daed-debian.sh" \
+    --upload "${ROOT_DIR}/scripts/install-mini-ppdns.sh:/tmp/install-mini-ppdns.sh" \
+    --upload "${OVERLAY_TAR}:/tmp/overlay-debian.tar" \
+    --upload "${SETUP_SCRIPT}:/tmp/setup-debian-gateway.sh"
 
   if [ -f "${PAOPAODNS_TAR}" ]; then
-    virt-customize -a "${QCOW_IMAGE}" --copy-in "${PAOPAODNS_TAR}:/tmp"
+    virt-customize -a "${QCOW_IMAGE}" --upload "${PAOPAODNS_TAR}:/tmp/paopaodns.tar"
   fi
 
   virt-customize -a "${QCOW_IMAGE}" --run /tmp/setup-debian-gateway.sh
