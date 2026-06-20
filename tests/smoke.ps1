@@ -69,6 +69,7 @@ Assert-FileContains '.github/workflows/build-ova.yml' 'libguestfs-tools' 'Workfl
 Assert-FileContains '.github/workflows/build-ova.yml' 'docker --version' 'Workflow must verify the runner Docker CLI used to preload PaoPaoDNS.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'add-apt-repository -y universe' 'Workflow must enable the Ubuntu universe repository before installing guestfs and Docker tools.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'install-tools\.log' 'Workflow must preserve build-tool installation logs for early CI failures.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'apt-get purge -y passt' 'Workflow must remove passt so libguestfs falls back on GitHub runners.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'scripts/ci-build-debian-ova\.sh' 'Workflow must build the Debian OVA.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'daed-debian-gateway-ova' 'Workflow must upload the Debian OVA artifact.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'daed-debian-gateway-diagnostics' 'Workflow must upload diagnostics separately from the OVA artifact.'

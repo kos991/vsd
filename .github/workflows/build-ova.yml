@@ -106,6 +106,7 @@ jobs:
             rsync \
             tar \
             xz-utils
+          sudo apt-get purge -y passt || true
           docker --version
 
       - name: Run template smoke tests
