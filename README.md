@@ -81,10 +81,10 @@ The menu uses number shortcuts:
 
 - `1`: daed manager
 - `2`: mini-ppdns manager
-- `3`: eBPF check
+- `2`: eBPF check
 - `4`: IP and routes
-- `5`: Gateway overview
-- `6`: QoS / CAKE
+- `3`: Gateway overview
+- `4`: QoS / CAKE
 - `0`: exit
 
 Service managers show short status first:

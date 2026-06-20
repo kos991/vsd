@@ -4,11 +4,9 @@ set -eu
 run_action() {
     case "$1" in
         1) daed-manager ;;
-        2) mini-ppdns-manager ;;
-        3) dae-gateway-manager ebpf ;;
-        4) dae-gateway-manager ip ;;
-        5) dae-gateway-manager status ;;
-        6) qos-manager ;;
+        2) dae-gateway-manager ebpf ;;
+        3) dae-gateway-manager status ;;
+        4) qos-manager ;;
         0) exit 0 ;;
         *) printf 'Unknown choice: %s\n' "$1" ;;
     esac
@@ -20,11 +18,9 @@ while :; do
 daed Alpine Gateway
 
 1) daed manager
-2) mini-ppdns manager
-3) eBPF check
-4) IP and routes
-5) Gateway overview
-6) QoS / CAKE
+2) eBPF check
+3) Gateway overview
+4) QoS / CAKE
 0) Exit
 
 EOF
@@ -32,7 +28,7 @@ EOF
     read -r choice || exit 0
     choice="$(printf '%s' "$choice" | tr -d '\r')"
     run_action "$choice"
-    if [ "$choice" != "1" ] && [ "$choice" != "2" ]; then
+    if [ "$choice" != "1" ]; then
         printf '\nPress Enter to continue...'
         read -r _ || exit 0
     fi

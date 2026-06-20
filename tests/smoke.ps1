@@ -59,6 +59,24 @@ function Assert-FileContainsUtf8Text {
         $failures.Add($Message)
     }
 }
+function Assert-FileIsAscii {
+    param(
+        [string]$Path,
+        [string]$Message
+    )
+    $full = Join-Path $Root $Path
+    if (-not (Test-Path -LiteralPath $full)) {
+        $failures.Add("Missing file: $Path")
+        return
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($full)
+    foreach ($byte in $bytes) {
+        if ($byte -gt 127) {
+            $failures.Add($Message)
+            return
+        }
+    }
+}
 function Assert-FileDoesNotContain {
     param(
         [string]$Path,
@@ -172,11 +190,11 @@ Assert-FileContains 'overlay/usr/local/sbin/gateway-network-init' 'accept_redire
 Assert-FileContains 'overlay/usr/local/sbin/gateway-network-init' 'MASQUERADE' 'Network init must add NAT masquerading so same-LAN clients can use the VM as their gateway.'
 Assert-FileContains 'overlay/usr/local/sbin/gateway-network-init' 'ip -4 route show dev "\$1" scope link' 'Network init must derive the LAN CIDR from the detected interface.'
 Assert-FileContains 'overlay/usr/local/sbin/gateway' '1\) daed manager' 'gateway menu must route to daed manager.'
-Assert-FileContains 'overlay/usr/local/sbin/gateway' '2\) mini-ppdns manager' 'gateway menu must route to mini-ppdns manager.'
-Assert-FileContains 'overlay/usr/local/sbin/gateway' '3\) eBPF check' 'gateway menu must provide a numeric eBPF shortcut.'
-Assert-FileContains 'overlay/usr/local/sbin/gateway' '4\) IP and routes' 'gateway menu must provide a numeric IP shortcut.'
-Assert-FileContains 'overlay/usr/local/sbin/gateway' '5\) Gateway overview' 'gateway menu must provide a concise overview shortcut.'
-Assert-FileContains 'overlay/usr/local/sbin/gateway' '6\) QoS / CAKE' 'gateway menu must route to QoS manager.'
+Assert-FileDoesNotContain 'overlay/usr/local/sbin/gateway' 'mini-ppdns manager' 'gateway menu must not show the mini-ppdns manager shortcut.'
+Assert-FileContains 'overlay/usr/local/sbin/gateway' '2\) eBPF check' 'gateway menu must provide a numeric eBPF shortcut.'
+Assert-FileDoesNotContain 'overlay/usr/local/sbin/gateway' 'IP and routes' 'gateway menu must not show the IP and routes shortcut.'
+Assert-FileContains 'overlay/usr/local/sbin/gateway' '3\) Gateway overview' 'gateway menu must provide a concise overview shortcut.'
+Assert-FileContains 'overlay/usr/local/sbin/gateway' '4\) QoS / CAKE' 'gateway menu must route to QoS manager.'
 Assert-FileContains 'overlay/usr/local/sbin/gateway' '0\) Exit' 'gateway menu must provide an exit shortcut.'
 Assert-FileContains 'overlay/usr/local/sbin/qos-manager' 'tc qdisc add dev "\$ifb_dev" root cake bandwidth' 'QoS manager must configure CAKE on IFB for download shaping.'
 Assert-FileContains 'overlay/usr/local/sbin/qos-manager' 'mirred egress redirect dev "\$ifb_dev"' 'QoS manager must redirect ingress traffic to IFB.'
@@ -188,15 +206,15 @@ Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'Details' 'daed manage
 Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'https://api.github.com/repos/daeuniverse/daed/releases' 'daed manager must check the latest daed release.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'start_service' 'daed manager must wrap start so stale OpenRC state can be recovered.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-manager' 'rc-service "\$service_name" zap' 'daed manager must clear stale OpenRC started state before retrying a stopped service.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5a+G56CB5by65bqm5LiN6Laz' 'firstboot must explain daed password strength requirements in Chinese.'
+Assert-FileIsAscii 'overlay/usr/local/sbin/daed-firstboot' 'firstboot console wizard must stay ASCII-only because the VM text console may not have CJK fonts.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'prompt_msg' 'firstboot must print interactive prompts outside command substitution.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '>&2' 'firstboot interactive prompts must be visible while captured values are returned on stdout.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5paw55qEIHJvb3Qg5a+G56CB' 'firstboot must visibly prompt for the root password in Chinese.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5YaN5qyh6L6T5YWlICRsYWJlbA==' 'firstboot must visibly prompt for password confirmation in Chinese.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' 'ZGFlZCBBbHBpbmUgR2F0ZXdheSDpppbmrKHlkK/liqjlkJHlr7w=' 'firstboot wizard header must be Chinese.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5piv5ZCm5ZCv55SoIEJCUiBUQ1Ag5LyY5YyW' 'firstboot TCP tuning prompt must be Chinese.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5q2j5Zyo5Yib5bu6IGRhZWQg6aaW5Liq566h55CG5ZGY55So5oi3' 'firstboot daed admin creation status must be Chinese.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '6aaW5qyh5ZCv5Yqo5ZCR5a+85bey5a6M5oiQ' 'firstboot completion message must be Chinese.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'new root password' 'firstboot must visibly prompt for the root password in ASCII.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'Confirm .*label' 'firstboot must visibly prompt for password confirmation in ASCII.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'daed Alpine Gateway firstboot wizard' 'firstboot wizard header must be ASCII.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'Enable BBR TCP optimization' 'firstboot TCP tuning prompt must be ASCII.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'Creating the first daed admin user' 'firstboot daed admin creation status must be ASCII.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'Firstboot wizard completed' 'firstboot completion message must be ASCII.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'if ! read -r first' 'firstboot must restore terminal echo if password input is interrupted.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'if ! read -r second' 'firstboot must restore terminal echo if password confirmation is interrupted.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'write_tcp_tuning' 'firstboot must generate TCP tuning settings.'
@@ -206,6 +224,9 @@ Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'createUser' 'firstb
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'http://127\.0\.0\.1:2023/graphql' 'firstboot must use the local daed GraphQL endpoint.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'start_firstboot_daed' 'firstboot must start daed directly for setup instead of recursing into OpenRC.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '--api-only' 'firstboot must start a temporary API-only daed process so user creation does not depend on transparent proxy startup.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'DAED_DATA_HOME="/root/\.local/share"' 'firstboot must pin the daed data home used for admin creation.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'HOME="\$DAED_HOME" XDG_DATA_HOME="\$DAED_DATA_HOME"' 'temporary firstboot daed must use the same home and data directory as the normal service.'
+Assert-FileContains 'overlay/etc/init.d/daed' '--env HOME=/root --env XDG_DATA_HOME=/root/\.local/share' 'normal daed service must read the same user database created during firstboot.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'numberUsers' 'firstboot readiness must probe GraphQL instead of depending on the web UI root route.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'http://127\.0\.0\.1:2023/graphql' 'firstboot readiness must target the local GraphQL endpoint.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'firstboot-daed\.err' 'firstboot must keep temporary daed startup errors visible for diagnosis.'
@@ -219,7 +240,7 @@ Assert-FileDoesNotContain 'overlay/usr/local/sbin/daed-firstboot' 'rc-service da
 Assert-FileDoesNotContain 'overlay/usr/local/sbin/daed-firstboot' 'rc-service sshd' 'firstboot must not restart sshd and risk blocking the recovery path.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' '/etc/dae-gateway-firstboot.done' 'firstboot must write a completion marker.'
 Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'prompt_uint_default' 'firstboot must validate numeric TCP tuning input instead of exiting on shell arithmetic errors.'
-Assert-FileContainsUtf8Text 'overlay/usr/local/sbin/daed-firstboot' '5b+F6aG75piv5q2j5pW05pWw' 'firstboot must explain invalid numeric TCP tuning input in Chinese.'
+Assert-FileContains 'overlay/usr/local/sbin/daed-firstboot' 'must be a positive integer' 'firstboot must explain invalid numeric TCP tuning input in ASCII.'
 Assert-FileContains 'overlay/etc/init.d/daed-firstboot' 'keyword -timeout' 'firstboot OpenRC service must not time out while waiting for console input.'
 Assert-FileContains 'overlay/etc/init.d/daed-firstboot' 'after bootmisc gateway-network-init check-ebpf mini-ppdns dae-qos sshd' 'firstboot must run after daed prerequisites and sshd so SSH remains available for recovery.'
 Assert-FileContains 'overlay/etc/init.d/daed-firstboot' 'before daed' 'firstboot must finish before the normal daed service starts.'

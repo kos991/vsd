@@ -7,7 +7,7 @@ command_background="yes"
 pidfile="/run/daed.pid"
 output_log="/var/log/daed/daed.log"
 error_log="/var/log/daed/daed.err"
-start_stop_daemon_args="--env XDG_DATA_HOME=/etc"
+start_stop_daemon_args="--env HOME=/root --env XDG_DATA_HOME=/root/.local/share"
 
 depend() {
     need net check-ebpf
