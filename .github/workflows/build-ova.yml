@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/vyos15-daed-packer
   workflow_dispatch:
     inputs:
       base_iso_url:
