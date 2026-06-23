@@ -111,6 +111,34 @@ daed's import behavior from docs alone (rated Important, not Critical). This req
 verification on a booted OVA and may need a first-boot GraphQL import step. NOT yet
 addressed — see decision needed below.
 
+## I1 RESOLVED — daed GraphQL provisioning (commit 7486d97)
+
+Confirmed from dae-wing `main` source: **daed does NOT read config.dae from disk.**
+The `-c` flag is a directory holding `wing.db`; dae boots with `EmptyConfig` and serves
+only the DB row marked `selected = true`. Config is provisioned exclusively via the
+GraphQL API at `http://localhost:2023/graphql`. The committed `config.dae` would have
+been dead work as-is.
+
+**Fix:** new `packer/custom-services/scripts/daed-provision.sh` (mode 100755):
+- Waits for `healthCheck`; idempotent via `numberUsers` + a `.provisioned` sentinel.
+- `createUser admin` with a generated strong random password, written root-only to
+  `/config/custom-services/daed/admin-credentials`; returns the JWT.
+- Extracts the top-level `dns{}` and `routing{}` bodies from the rendered `config.dae`
+  (awk with global brace-depth tracking — verified it does NOT grab the nested
+  `routing` inside `dns{}`).
+- `createConfig` + `createDns` / `createRouting` (raw dae text, resolver adds wrapper),
+  then `selectConfig`/`selectDns`/`selectRouting`.
+- Does NOT run: routing's `fallback: proxy` references a node-less proxy group, so a run
+  would fail. Matches the README blackhole contract — nothing forwards until the user
+  adds a node in the :2023 dashboard and applies there. **Decision: option B.**
+
+Wiring: `custom-services-latebind.sh` invokes `daed-provision.sh` after daed starts;
+`setup-gateway.sh` chmod +x's it (curl/jq already installed). README First-Boot,
+Runtime Layout, "How daed Config Is Loaded", and Known Limitation updated; smoke.ps1
+gained provisioner assertions. Verified: 4 scripts `bash -n` clean, smoke passes.
+`config.dae` is now the source-of-truth text that is rendered + imported, not a file
+daed reads directly.
+
 **Confirmed clean:** all committed config contracts (ports 5335, paths, placeholders,
 the 7 daed routing rules in exact order, late-bind 30s loop + unsafe-bind guard,
 geosite >1000-line failsafe), CI step sequence, no baked-in secrets, no dangling
