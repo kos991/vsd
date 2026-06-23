@@ -1,0 +1,43 @@
+global {
+  log_level: info
+  tproxy_port: 12345
+  allow_insecure: false
+  check_interval: 30s
+  check_tolerance: 50ms
+  lan_interface: auto
+  wan_interface: auto
+  auto_config_kernel_parameter: true
+}
+
+dns {
+  upstream {
+    local: 'udp://127.0.0.1:5335'
+  }
+  routing {
+    request {
+      fallback: local
+    }
+  }
+}
+
+node {
+}
+
+group {
+  direct {
+    policy: fixed(0)
+  }
+}
+
+routing {
+  dip(114.114.114.114, 114.114.115.115, 119.29.29.29, 119.28.28.28, 180.76.76.76, 223.5.5.5, 223.6.6.6) -> must_direct
+  # NOTE: dae dip() normally matches IP/CIDR/geoip; dip(<domain>) is per spec author
+  # and must be confirmed with `daed validate` on a booted OVA. Fallback if it errors:
+  # domain(suffix:doh.pub) or pin doh.pub fixed IPs.
+  dip(doh.pub) -> must_direct
+  sip(<LAN_SUBNET>) && dip(<LAN_BIND_IP>) && dport(53) -> must_direct
+  sip(<LAN_SUBNET>) && !dip(<LAN_BIND_IP>) && dport(53, 853) -> block
+  dip(geoip:private) -> direct
+  dip(geoip:cn) -> direct
+  fallback: proxy
+}
