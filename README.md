@@ -1,157 +1,111 @@
-# Debian 13 daed Gateway OVA
+# VyOS 1.5 daed Gateway OVA
 
-This repository builds a VMware OVA gateway image that stitches together mature components:
+An immutable VyOS 1.5 routing appliance (OVA) that integrates an eBPF transparent
+proxy (`daed`) with a dual-engine DNS stack: `MosDNS` (front desk) + `SmartDNS`
+(CN resolver). Built reproducibly with Packer.
 
-- Debian 13 (`trixie`) as the stable high-performance base.
-- XanMod kernel, default `linux-xanmod-x64v3`, for stronger gateway throughput and scheduler latency.
-- `daed` as the original proxy dashboard and transparent proxy runtime.
-- `PaoPaoDNS` as the primary DNS service through the official container image.
-- BBR/fq, eBPF/BTF checks, nftables tooling, and optional CAKE/IFB QoS.
-- `open-vm-tools` for VMware guest integration.
-- A small console `gateway` menu for status, start/stop/restart, logs, updates, and QoS.
+## Architecture
 
-The goal is not to replace daed or PaoPaoDNS. The image installs them, wires their services together, and gives you a simple recovery path.
+```mermaid
+flowchart TD
+    client["LAN client"] -->|DNS :53| mos["MosDNS (LAN_IP:53)"]
+    dae["daed (eBPF tproxy :12345)"]
+    client -->|all traffic| dae
 
-## GitHub Actions Usage
+    mos -->|cache hit| ret["return IP"]
+    mos -->|geosite:cn| smart["SmartDNS (127.0.0.1:5335)"]
+    mos -->|geosite:!cn / fallback| doh["DoH 8.8.8.8"]
 
-1. Push this repository to GitHub.
-2. Open the repository's **Actions** tab.
-3. Select **Build Debian gateway OVA**.
-4. Click **Run workflow**.
-5. Download the `daed-debian-gateway-ova` artifact after the workflow finishes.
+    smart -->|concurrent CN upstreams + speed-check| cnip["fastest CN IP"]
+    doh -->|TLS to 8.8.8.8| dae
+    dae -->|fallback: proxy| tunnel["proxy node (added via daed UI)"]
+    tunnel -->|clean overseas IP| mos
 
-Workflow inputs:
-
-- `debian_version`: Debian major version, default `13`.
-- `debian_codename`: Debian codename, default `trixie`.
-- `daed_version`: `latest` or a daed tag such as `v1.27.0`.
-- `paopaodns_image`: PaoPaoDNS image, default `sliamb/paopaodns:latest`.
-- `xanmod_package`: XanMod kernel package, default `linux-xanmod-x64v3`. Use `linux-xanmod-x64v2` for older CPUs.
-- `disk_size`: virtual disk size, default `8G`.
-- `memory_mb`: OVF memory hint, default `4096`.
-- `cpu_count`: OVF CPU hint, default `2`.
-
-## Firstboot
-
-The image does not bake in a default `root` password. On first boot, the console wizard asks only for the root password.
-
-The root password only needs to be non-empty and entered the same way twice. The wizard writes `/etc/dae-gateway-firstboot.done` after completion.
-
-Create the daed administrator in the original daed dashboard:
-
-```text
-http://<gateway-ip>:2023
+    dae -->|geoip:cn / private| direct["direct"]
 ```
+
+## DNS Data Flow
+
+1. **L1 — daed (eBPF enforcer).** LAN clients sending DNS to the gateway's own
+   `:53` are allowed (`must_direct`); DNS to any *other* server (`:53`/`:853`) is
+   blocked, preventing DNS escape.
+2. **L2 — MosDNS (front desk, `LAN_IP:53`).** Cache hits return instantly.
+   `geosite:cn` domains go to SmartDNS; `geosite:!cn` and fallback go to DoH
+   `https://8.8.8.8/dns-query`.
+3. **L3 — resolution.** CN: SmartDNS queries multiple mainland upstreams
+   concurrently and speed-selects the fastest IP (daed lets SmartDNS egress
+   directly). Overseas: MosDNS's TLS query to 8.8.8.8 is intercepted by daed and
+   tunneled through your proxy node, returning an uncontaminated IP.
+4. **L4 — return.** MosDNS caches the result and answers the client.
+
+## First Boot — IMPORTANT
+
+The image ships with **no proxy node**. Until you add one, daed's
+`fallback: proxy` has nowhere to send overseas traffic, so **all overseas traffic
+(and overseas DNS via DoH) is blackholed**. Mainland sites keep working.
+
+To make overseas traffic work:
+
+1. Open the daed dashboard:
+   ```text
+   http://<gateway-ip>:2023
+   ```
+2. Create the daed admin user.
+3. Add a proxy node / subscription and select it for the default group.
+
+The LAN IP is bound at boot by a late-bind script — the image never hard-codes an
+IP or binds `0.0.0.0`.
 
 ## Runtime Layout
 
-Inside the generated VM:
-
-- `/usr/bin/daed`
-- `/etc/daed/`
-- `/usr/share/daed/geoip.dat`
-- `/usr/share/daed/geosite.dat`
-- `/etc/paopaodns/paopaodns.env`
-- `/var/lib/paopaodns/`
-- `/usr/local/sbin/gateway`
-- `/usr/local/sbin/daed-manager`
-- `/usr/local/sbin/paopaodns-manager`
-- `/usr/local/sbin/qos-manager`
-- `/usr/local/sbin/check-ebpf`
-
-Quick menu:
-
-```sh
-gateway
-```
-
-The menu uses number shortcuts:
-
-- `1`: daed manager
-- `2`: PaoPaoDNS manager
-- `3`: eBPF check
-- `4`: Gateway overview
-- `5`: QoS / CAKE
-- `6`: mini-ppdns fallback
-- `0`: exit
-
-## PaoPaoDNS
-
-PaoPaoDNS is the primary DNS service. The first Debian version uses the official `sliamb/paopaodns` container with host networking for the least moving parts and good DNS performance.
-
-Important paths:
-
 ```text
-/etc/paopaodns/paopaodns.env
-/var/lib/paopaodns/
+/config/custom-services/bin/{daed,mosdns,smartdns}
+/config/custom-services/daed/config.dae          # rendered from .template each boot
+/config/custom-services/mosdns/config.yaml        # rendered from .template each boot
+/config/custom-services/smartdns/smartdns.conf
+/config/custom-services/geo/{geoip.dat,geosite.dat,geolocation-cn.txt,geolocation-!cn.txt}
+/config/custom-services/scripts/{custom-services-latebind.sh,geosite-update.sh}
 ```
 
-Manage it from the console:
+Services: `daed.service`, `mosdns.service`, `smartdns.service`,
+`custom-services-latebind.service` (oneshot at boot), `geosite-update.timer` (weekly).
 
-```sh
-paopaodns-manager status
-paopaodns-manager restart
-paopaodns-manager logs
-```
+## Building
 
-`systemd-resolved` stub listening is disabled so PaoPaoDNS can bind TCP/UDP port `53`.
+GitHub Actions → **Build VyOS 1.5 daed Gateway OVA** → **Run workflow**. Inputs:
 
-`mini-ppdns` is installed only as a fallback. It is disabled by default because it also binds port `53`.
+- `base_iso_url`: optional prebuilt VyOS 1.5 x86_64 ISO; empty builds circinus/1.5
+  from `dd010101/vyos-jenkins`.
+- `daed_version`: a daed tag or `latest`.
+- `disk_size`: virtual disk size in MB (default `8192`).
 
-## Image Size
+Download the `vyos15-daed-gateway-ova` artifact when the run finishes.
 
-The image keeps the PaoPaoDNS container archive under `/opt/dae-gateway/images/` so DNS can start without pulling the image again. The build removes non-runtime leftovers such as Linux headers, the stock Debian cloud kernel, apt caches, documentation, manual pages, and unused build helper packages before converting the disk to VMDK.
+## Geosite Updates
 
-The image keeps the XanMod kernel, Docker runtime, daed, PaoPaoDNS archive, SSH, and `open-vm-tools` because they are runtime components.
-
-## daed
-
-daed is installed from the upstream Debian package. Its original dashboard remains the place to create the admin user, add nodes, and manage daed's own configuration.
-
-```text
-http://<gateway-ip>:2023
-```
-
-Manage the service:
-
-```sh
-daed-manager status
-daed-manager restart
-daed-manager logs
-```
-
-## QoS
-
-CAKE/IFB tools are installed but not blindly enabled. Configure them only after you know the real WAN interface and bandwidth:
-
-```sh
-qos-manager
-```
-
-Settings are saved to `/etc/dae-gateway-qos.conf`; `dae-qos.service` restores them at boot only when QoS is enabled.
-
-## eBPF Notes
-
-The Debian image installs the XanMod kernel from the official XanMod APT repository. The default package is `linux-xanmod-x64v3`; change the workflow input to `linux-xanmod-x64v2` if the VM host CPU is older.
-
-The VM still verifies the real runtime state before daed starts.
-
-The preflight checks:
-
-- `/sys/fs/bpf` is mounted.
-- `/sys/fs/cgroup` is cgroup v2.
-- `/sys/kernel/btf/vmlinux` exists.
-- `bpftool feature probe kernel` can run.
-- `ip_forward` is enabled.
-
-The gateway overview and eBPF check also print the TCP congestion control, default qdisc, and `tcp_bbr` module version. On XanMod BBRv3 still appears as congestion control `bbr`; verify the module reports `version: 3`.
+`geosite-update.timer` refreshes the MosDNS `geolocation-cn.txt` /
+`geolocation-!cn.txt` lists weekly. The updater aborts if a downloaded list has
+fewer than 1000 lines, so a bad download never breaks DNS routing.
 
 ## Local Verification
-
-Run the smoke tests from PowerShell:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/smoke.ps1
 ```
 
-The full OVA build is designed to run in GitHub Actions on `ubuntu-latest`.
+Shell syntax checks:
+
+```bash
+bash -n packer/scripts/setup-gateway.sh
+bash -n packer/custom-services/scripts/custom-services-latebind.sh
+bash -n packer/custom-services/scripts/geosite-update.sh
+```
+
+Full `packer validate` and the OVA build run in GitHub Actions.
+
+## Known Limitation
+
+`daed/config.dae` includes `dip(doh.pub) -> must_direct`. dae's `dip()` normally
+matches IP/CIDR/geoip, not domains; this rule must be confirmed with
+`daed validate` on a booted OVA. If it errors, replace with
+`domain(suffix:doh.pub)` or pin doh.pub's fixed IPs.
