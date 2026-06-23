@@ -20,6 +20,9 @@ status_view() {
     printf 'Data: %s %s\n' "$data_dir" "$([ -d "$data_dir" ] && printf ok || printf missing)"
     printf 'Config: %s %s\n' "$env_file" "$([ -f "$env_file" ] && printf ok || printf missing)"
     printf 'DNS: host network port 53 tcp/udp\n'
+    if command -v dae-paopaodns-link >/dev/null 2>&1; then
+        dae-paopaodns-link status 2>/dev/null | sed 's/^/Link: /' || true
+    fi
 }
 
 updates_view() {
@@ -51,6 +54,7 @@ menu() {
 5) Check latest image
 6) Show env config
 7) Switch to mini-ppdns fallback
+8) Link PaoPaoDNS upstream with dae
 0) Back
 
 EOF
@@ -64,6 +68,7 @@ EOF
             5) updates_view ;;
             6) sed -n '1,120p' "$env_file" ;;
             7) mini-ppdns-manager switch ;;
+            8) dae-paopaodns-link apply ;;
             0) exit 0 ;;
             *) printf 'Unknown choice: %s\n' "$choice" ;;
         esac

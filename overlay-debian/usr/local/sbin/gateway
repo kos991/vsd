@@ -12,6 +12,9 @@ Debian daed Gateway
 4) Gateway overview
 5) QoS / CAKE
 6) mini-ppdns fallback
+7) Link PaoPaoDNS with dae
+8) Cache warm manager
+9) DNS leak guard
 0) Exit
 
 EOF
@@ -24,6 +27,9 @@ EOF
         4) dae-gateway-manager status ;;
         5) qos-manager ;;
         6) mini-ppdns-manager ;;
+        7) dae-paopaodns-link status; printf '\nApply link now? [y/N]: '; read -r yn || exit 0; case "$(printf '%s' "$yn" | tr -d '\r')" in y|Y) dae-paopaodns-link apply ;; esac ;;
+        8) cache-manager ;;
+        9) dns-leak-guard status; printf '\nSeal DNS leak now? [y/N]: '; read -r yn || exit 0; case "$(printf '%s' "$yn" | tr -d '\r')" in y|Y) dns-leak-guard apply ;; esac ;;
         0) exit 0 ;;
         *) printf 'Unknown choice: %s\n' "$choice" ;;
     esac

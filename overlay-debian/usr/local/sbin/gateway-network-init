@@ -83,6 +83,13 @@ configure_gateway_forwarding() {
 
     iptables -t nat -C POSTROUTING -s "$lan_cidr" ! -d "$lan_cidr" -o "$iface" -j MASQUERADE >/dev/null 2>&1 \
         || iptables -t nat -A POSTROUTING -s "$lan_cidr" ! -d "$lan_cidr" -o "$iface" -j MASQUERADE
+
+    for proto in udp tcp; do
+        iptables -t nat -C PREROUTING -i "$iface" -s "$lan_cidr" -p "$proto" --dport 53 -j REDIRECT --to-ports 53 >/dev/null 2>&1 \
+            || iptables -t nat -A PREROUTING -i "$iface" -s "$lan_cidr" -p "$proto" --dport 53 -j REDIRECT --to-ports 53
+        iptables -C FORWARD -i "$iface" -s "$lan_cidr" -p "$proto" --dport 853 -j REJECT >/dev/null 2>&1 \
+            || iptables -A FORWARD -i "$iface" -s "$lan_cidr" -p "$proto" --dport 853 -j REJECT
+    done
 }
 
 main() {

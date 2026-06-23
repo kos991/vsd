@@ -1,4 +1,4 @@
-name: Build Debian gateway OVA
+name: Build VyOS 1.5 daed Gateway OVA
 
 on:
   push:
@@ -6,38 +6,21 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      debian_version:
-        description: Debian major version
-        required: true
-        default: '13'
-      debian_codename:
-        description: Debian release codename
-        required: true
-        default: trixie
+      base_iso_url:
+        description: "可选：已有 VyOS 1.5 x86_64 ISO URL；为空时自动从 dd010101/vyos-jenkins 构建 circinus/1.5"
+        required: false
+        type: string
+        default: ""
       daed_version:
-        description: daed release tag, or latest
+        description: "daed release tag，或 latest"
         required: true
+        type: string
         default: latest
-      paopaodns_image:
-        description: PaoPaoDNS container image
-        required: true
-        default: sliamb/paopaodns:latest
-      xanmod_package:
-        description: XanMod kernel package
-        required: true
-        default: linux-xanmod-x64v3
       disk_size:
-        description: Raw disk image size
+        description: "虚拟磁盘大小，单位 MB"
         required: true
-        default: 8G
-      memory_mb:
-        description: OVF memory hint in MB
-        required: true
-        default: '4096'
-      cpu_count:
-        description: OVF CPU hint
-        required: true
-        default: '2'
+        type: string
+        default: "8192"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,95 +32,244 @@ permissions:
 jobs:
   build:
     name: Build OVA
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
     env:
-      DEBIAN_VERSION: ${{ inputs.debian_version || '13' }}
-      DEBIAN_CODENAME: ${{ inputs.debian_codename || 'trixie' }}
+      BASE_ISO_URL: ${{ inputs.base_iso_url || vars.BASE_ISO_URL || '' }}
       DAED_VERSION: ${{ inputs.daed_version || 'latest' }}
-      PAOPAODNS_IMAGE: ${{ inputs.paopaodns_image || 'sliamb/paopaodns:latest' }}
-      XANMOD_PACKAGE: ${{ inputs.xanmod_package || 'linux-xanmod-x64v3' }}
-      DISK_SIZE: ${{ inputs.disk_size || '8G' }}
-      MEMORY_MB: ${{ inputs.memory_mb || '4096' }}
-      CPU_COUNT: ${{ inputs.cpu_count || '2' }}
+      DISK_SIZE: ${{ inputs.disk_size || '8192' }}
+      VYOS_JENKINS_REPO: https://github.com/dd010101/vyos-jenkins.git
+      VYOS_STREAM_BRANCH: circinus
+      DIST_DIR: ${{ github.workspace }}/dist
+
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare diagnostics artifact
+      - name: Prepare diagnostics
+        shell: bash
         run: |
-          DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          set -e
           mkdir -p "${DIST_DIR}"
           {
             echo "run_id=${GITHUB_RUN_ID}"
             echo "sha=${GITHUB_SHA}"
-            echo "debian_version=${DEBIAN_VERSION}"
-            echo "debian_codename=${DEBIAN_CODENAME}"
+            echo "base_iso_url=${BASE_ISO_URL:-<auto-build-from-vyos-jenkins>}"
+            echo "vyos_jenkins_repo=${VYOS_JENKINS_REPO}"
+            echo "vyos_stream_branch=${VYOS_STREAM_BRANCH}"
             echo "daed_version=${DAED_VERSION}"
-            echo "paopaodns_image=${PAOPAODNS_IMAGE}"
-            echo "xanmod_package=${XANMOD_PACKAGE}"
             echo "disk_size=${DISK_SIZE}"
           } >"${DIST_DIR}/ci-context.txt"
           echo 125 >"${DIST_DIR}/build.status"
-          echo "Build did not start yet. Check earlier workflow steps." >"${DIST_DIR}/build.log"
+          echo "Build prepared. ISO has not been resolved yet." >"${DIST_DIR}/build.log"
 
       - name: Install build tools
+        shell: bash
         run: |
-          DIST_DIR="${GITHUB_WORKSPACE}/dist"
-          mkdir -p "${DIST_DIR}"
+          set -e
           exec > >(tee "${DIST_DIR}/install-tools.log") 2>&1
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends software-properties-common
-          sudo add-apt-repository -y universe
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bash \
             ca-certificates \
             curl \
-            dosfstools \
-            e2fsprogs \
-            fdisk \
-            grub2-common \
-            grub-pc-bin \
-            libarchive-tools \
-            libguestfs-tools \
-            parted \
+            git \
+            jq \
+            ovmf \
+            python3 \
+            python3-pip \
+            qemu-system-x86 \
             qemu-utils \
-            rsync \
             tar \
-            xz-utils
-          sudo apt-get purge -y passt || true
-          docker --version
+            unzip \
+            xorriso
 
-      - name: Build OVA
-        run: bash scripts/ci-build-debian-ova.sh
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: latest
 
-      - name: List artifact files
-        if: always()
-        shell: bash {0}
+      - name: Resolve VyOS 1.5 base ISO
+        id: iso
+        shell: bash
+        run: |
+          set -e
+          exec > >(tee "${DIST_DIR}/resolve-iso.log") 2>&1
+          mkdir -p "${GITHUB_WORKSPACE}/packer/cache"
+
+          if [ -n "${BASE_ISO_URL}" ]; then
+            echo "Using provided BASE_ISO_URL."
+            curl -fL --retry 5 --retry-delay 5 "${BASE_ISO_URL}" -o "${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
+          else
+            echo "BASE_ISO_URL is empty. Building VyOS 1.5/circinus ISO from ${VYOS_JENKINS_REPO}."
+            BUILD_ROOT="${RUNNER_TEMP}/vyos-jenkins"
+            rm -rf "${BUILD_ROOT}"
+            git clone --depth 1 "${VYOS_JENKINS_REPO}" "${BUILD_ROOT}"
+
+            sudo "${BUILD_ROOT}/new/install-dependencies.sh"
+
+            pushd "${BUILD_ROOT}/new"
+            ./package_builder.py "${VYOS_STREAM_BRANCH}"
+            ./image_builder.py "${VYOS_STREAM_BRANCH}"
+            popd
+
+            ISO_PATH="$(find "${BUILD_ROOT}" -type f \( -name '*.iso' -o -name '*.hybrid.iso' \) | sort | tail -n 1)"
+            if [ -z "${ISO_PATH}" ]; then
+              echo "VyOS 1.5 ISO was not produced by vyos-jenkins." >&2
+              exit 1
+            fi
+            cp "${ISO_PATH}" "${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
+          fi
+
+          ISO_FILE="${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
+          test -s "${ISO_FILE}"
+          ISO_SHA256="$(sha256sum "${ISO_FILE}" | awk '{print $1}')"
+          echo "iso_path=${ISO_FILE}" >>"${GITHUB_OUTPUT}"
+          echo "iso_checksum=sha256:${ISO_SHA256}" >>"${GITHUB_OUTPUT}"
+          cp "${ISO_FILE}" "${DIST_DIR}/base-vyos-1.5.iso"
+          echo "${ISO_SHA256}  base-vyos-1.5.iso" >"${DIST_DIR}/base-vyos-1.5.iso.sha256"
+
+      - name: Generate config stubs
+        shell: bash
+        run: |
+          set -e
+          mkdir -p \
+            packer/custom-services/daed \
+            packer/custom-services/mosdns \
+            packer/custom-services/smartdns
+
+          cat > packer/custom-services/mosdns/config.yaml <<'EOF'
+          log:
+            level: info
+            file: "/config/custom-services/mosdns/mosdns.log"
+
+          plugins:
+            - tag: cache
+              type: cache
+              args:
+                size: 4096
+                lazy_cache_ttl: 86400
+
+            - tag: forward_smartdns
+              type: forward
+              args:
+                concurrent: 1
+                upstreams:
+                  - addr: "udp://127.0.0.1:6053"
+                  - addr: "tcp://127.0.0.1:6053"
+
+            - tag: main_sequence
+              type: sequence
+              args:
+                - exec: "$cache"
+                - exec: "$forward_smartdns"
+
+          servers:
+            - exec: main_sequence
+              listeners:
+                - protocol: udp
+                  addr: "<LAN_BIND_IP>:53"
+                - protocol: tcp
+                  addr: "<LAN_BIND_IP>:53"
+          EOF
+
+          cat > packer/custom-services/smartdns/smartdns.conf <<'EOF'
+          bind 127.0.0.1:6053
+          bind-tcp 127.0.0.1:6053
+          cache-size 4096
+          prefetch-domain yes
+          serve-expired yes
+          log-level info
+          log-file /config/custom-services/smartdns/smartdns.log
+
+          server-tls 1.1.1.1
+          server-tls 8.8.8.8
+          EOF
+
+          cat > packer/custom-services/daed/config.dae <<'EOF'
+          global {
+            log_level: info
+            tproxy_port: 12345
+            allow_insecure: false
+            check_interval: 30s
+            check_tolerance: 50ms
+            lan_interface: auto
+            wan_interface: auto
+            auto_config_kernel_parameter: true
+          }
+
+          dns {
+            upstream {
+              local: 'udp://127.0.0.1:6053'
+            }
+            routing {
+              request {
+                fallback: local
+              }
+            }
+          }
+
+          node {
+          }
+
+          group {
+            direct {
+              policy: fixed(0)
+            }
+          }
+
+          routing {
+            dip(<LAN_SUBNET>) -> direct
+            fallback: direct
+          }
+          EOF
+
+      - name: Packer init
+        shell: bash
+        run: packer init packer/build.pkr.hcl
+
+      - name: Packer validate
+        shell: bash
+        run: |
+          packer validate \
+            -var "iso_url=${{ steps.iso.outputs.iso_path }}" \
+            -var "iso_checksum=${{ steps.iso.outputs.iso_checksum }}" \
+            -var "disk_size=${DISK_SIZE}" \
+            -var "daed_version=${DAED_VERSION}" \
+            packer/build.pkr.hcl
+
+      - name: Packer build
+        shell: bash
         run: |
           set +e
-          DIST_DIR="${GITHUB_WORKSPACE}/dist"
-          sudo mkdir -p "${DIST_DIR}"
-          sudo chown -R "$(id -u):$(id -g)" "${DIST_DIR}" || true
+          packer build \
+            -var "iso_url=${{ steps.iso.outputs.iso_path }}" \
+            -var "iso_checksum=${{ steps.iso.outputs.iso_checksum }}" \
+            -var "disk_size=${DISK_SIZE}" \
+            -var "daed_version=${DAED_VERSION}" \
+            packer/build.pkr.hcl 2>&1 | tee "${DIST_DIR}/packer-build.log"
+          status="${PIPESTATUS[0]}"
+          echo "${status}" >"${DIST_DIR}/build.status"
+          cp "${DIST_DIR}/packer-build.log" "${DIST_DIR}/build.log"
+          exit "${status}"
+
+      - name: Collect artifact files
+        if: always()
+        shell: bash
+        run: |
+          set +e
           mkdir -p "${DIST_DIR}"
+          find artifacts -maxdepth 1 -type f -name '*.ova' -exec cp {} "${DIST_DIR}/" \; 2>/dev/null || true
           if [ ! -f "${DIST_DIR}/build.status" ]; then
             echo 124 >"${DIST_DIR}/build.status"
-            echo "Build status was missing before artifact upload." >"${DIST_DIR}/build.log"
           fi
-          if [ -f "${DIST_DIR}/install-tools.log" ]; then
-            echo "----- dist/install-tools.log -----"
-            cat "${DIST_DIR}/install-tools.log"
-          fi
-          echo "Artifact directory: ${DIST_DIR}"
-          find "${DIST_DIR}" -maxdepth 2 -type f -print -exec ls -lh {} \; || true
-          exit 0
+          find "${DIST_DIR}" -maxdepth 1 -type f -print -exec ls -lh {} \; || true
 
-      - name: Upload diagnostics artifact
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: daed-debian-gateway-diagnostics
+          name: vyos15-daed-gateway-diagnostics
           path: |
             ${{ github.workspace }}/dist/*.log
             ${{ github.workspace }}/dist/*.status
@@ -146,24 +278,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload OVA artifact
-        if: always()
+      - name: Upload OVA
         uses: actions/upload-artifact@v4
         with:
-          name: daed-debian-gateway-ova
+          name: vyos15-daed-gateway-ova
           path: ${{ github.workspace }}/dist/*.ova
           if-no-files-found: error
           retention-days: 14
-
-      - name: Check build result
-        if: always()
-        run: |
-          status="$(cat "${GITHUB_WORKSPACE}/dist/build.status")"
-          if [ "${status}" -ne 0 ]; then
-            echo "OVA build failed with status ${status}."
-            echo "----- dist/build.log -----"
-            cat "${GITHUB_WORKSPACE}/dist/build.log"
-            message="$(tail -n 40 "${GITHUB_WORKSPACE}/dist/build.log" | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')"
-            echo "::error title=OVA build failed::status=${status}%0A${message}"
-            exit "${status}"
-          fi

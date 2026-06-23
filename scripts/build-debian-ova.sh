@@ -63,12 +63,16 @@ cat >"${SETUP_SCRIPT}" <<SETUP
 set -euxo pipefail
 
 cat >>/etc/hosts <<'EOF'
-151.101.2.132 deb.debian.org security.debian.org
-151.101.66.132 deb.debian.org security.debian.org
-151.101.130.132 deb.debian.org security.debian.org
-151.101.194.132 deb.debian.org security.debian.org
 104.21.40.143 deb.xanmod.org
 172.67.153.8 deb.xanmod.org
+EOF
+
+mkdir -p /etc/apt/mirrors
+cat >/etc/apt/mirrors/debian.list <<'EOF'
+https://mirrors.nju.edu.cn/debian
+EOF
+cat >/etc/apt/mirrors/debian-security.list <<'EOF'
+https://mirrors.nju.edu.cn/debian-security
 EOF
 
 apt-get update
@@ -91,11 +95,15 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   openssh-server \
   pciutils \
   procps \
+  python3-minimal \
   tar \
   unzip \
   xz-utils
 
-echo "deb [trusted=yes] http://deb.xanmod.org ${DEBIAN_CODENAME} main" >/etc/apt/sources.list.d/xanmod-release.list
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://dl.xanmod.org/archive.key | gpg --dearmor -o /etc/apt/keyrings/xanmod-archive-keyring.gpg
+chmod 0644 /etc/apt/keyrings/xanmod-archive-keyring.gpg
+echo "deb [signed-by=/etc/apt/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org ${DEBIAN_CODENAME} main" >/etc/apt/sources.list.d/xanmod-release.list
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${XANMOD_PACKAGE}"
 
@@ -113,6 +121,9 @@ chmod +x /usr/local/sbin/gateway-network-init
 chmod +x /usr/local/sbin/dae-gateway-firstboot
 chmod +x /usr/local/sbin/gateway
 chmod +x /usr/local/sbin/dae-gateway-manager
+chmod +x /usr/local/sbin/dae-paopaodns-link
+chmod +x /usr/local/sbin/dns-leak-guard
+chmod +x /usr/local/sbin/cache-manager
 chmod +x /usr/local/sbin/daed-manager
 chmod +x /usr/local/sbin/paopaodns-load-image
 chmod +x /usr/local/sbin/paopaodns-manager
@@ -133,6 +144,7 @@ packages_to_purge="\$(dpkg-query -W -f='\${Package}\n' \
 if [ -n "\${packages_to_purge}" ]; then
   DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove \${packages_to_purge} || true
 fi
+/usr/local/sbin/dae-paopaodns-link apply || true
 DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge || true
 apt-get clean
 rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*
@@ -142,6 +154,8 @@ passwd -l root || true
 mkdir -p /etc/systemd/resolved.conf.d
 cat >/etc/systemd/resolved.conf.d/disable-stub.conf <<'EOF'
 [Resolve]
+DNS=127.0.0.1
+FallbackDNS=223.5.5.5 119.29.29.29
 DNSStubListener=no
 EOF
 rm -f /etc/resolv.conf
@@ -160,6 +174,8 @@ IMAGE_NAME='${IMAGE_NAME}'
 EOF
 systemctl enable check-ebpf.service
 systemctl enable gateway-network-init.service
+systemctl enable dns-leak-guard.service
+systemctl enable gateway-cache-warm.timer
 systemctl enable dae-gateway-firstboot.service
 systemctl enable paopaodns.service
 systemctl enable dae-qos.service

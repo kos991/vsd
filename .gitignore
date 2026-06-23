@@ -1,3 +1,5 @@
 subtitles.txt
 build/
 dist/
+.tools/
+.superpowers/

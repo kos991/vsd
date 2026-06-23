@@ -1,0 +1,152 @@
+#!/bin/sh
+set -eu
+
+db_path="/etc/daed/wing.db"
+
+default_iface() {
+    ip -4 route show default 2>/dev/null | awk '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "dev") {
+                    print $(i + 1)
+                    exit
+                }
+            }
+        }
+    '
+}
+
+apply_guard() {
+    [ -f "$db_path" ] || {
+        printf 'Missing daed database: %s\n' "$db_path" >&2
+        exit 1
+    }
+    iface="$(default_iface)"
+    [ -n "$iface" ] || {
+        printf 'Missing default route interface.\n' >&2
+        exit 1
+    }
+    addr_cidr="$(ip -4 -o addr show dev "$iface" scope global | awk 'NR == 1 { print $4 }')"
+    [ -n "$addr_cidr" ] || {
+        printf 'Missing IPv4 address on %s.\n' "$iface" >&2
+        exit 1
+    }
+
+    python3 - "$db_path" "$addr_cidr" "$iface" <<'PY'
+import ipaddress
+import re
+import shutil
+import sqlite3
+import sys
+import time
+
+db_path = sys.argv[1]
+addr_cidr = sys.argv[2]
+iface = sys.argv[3]
+interface = ipaddress.ip_interface(addr_cidr)
+gateway_ip = str(interface.ip)
+lan_cidr = str(interface.network)
+guard_rule = f"sip({lan_cidr}) && !sip({gateway_ip}) && !dip({gateway_ip}) && dport(53, 853) -> block"
+guard_re = re.compile(
+    r"sip\([^)]*\) && !sip\([^)]*\)(?: && !dip\([^)]*\))? && dport\((?:53,\s*)?853\) -> block"
+)
+
+con = sqlite3.connect(db_path)
+cur = con.cursor()
+row = cur.execute(
+    "select id, routing, version from routings where selected = 1 order by id limit 1"
+).fetchone()
+if row is None:
+    raise SystemExit("selected daed routing is missing")
+
+routing_id, routing, version = row
+if "routing {" not in routing:
+    raise SystemExit("selected daed routing does not look valid")
+
+backup = f"{db_path}.bak-dns-leak-guard-{int(time.time())}"
+shutil.copy2(db_path, backup)
+
+lines = []
+for line in routing.splitlines():
+    if guard_re.search(line.strip()):
+        continue
+    lines.append(line)
+
+insert_at = 1 if lines and lines[0].strip() == "routing {" else 0
+lines.insert(insert_at, guard_rule)
+new_routing = "\n".join(lines)
+
+if new_routing != routing:
+    cur.execute(
+        "update routings set routing = ?, version = ? where id = ?",
+        (new_routing, int(version or 0) + 1, routing_id),
+    )
+    con.commit()
+    print(f"DNS leak guard applied. Interface: {iface}. Rule: {guard_rule}. Backup: {backup}")
+else:
+    print(f"DNS leak guard already active. Interface: {iface}. Rule: {guard_rule}")
+con.close()
+PY
+}
+
+status_guard() {
+    [ -f "$db_path" ] || {
+        printf 'DNS leak guard: missing daed database: %s\n' "$db_path"
+        exit 1
+    }
+    iface="$(default_iface || true)"
+    addr_cidr=""
+    [ -n "$iface" ] && addr_cidr="$(ip -4 -o addr show dev "$iface" scope global | awk 'NR == 1 { print $4 }')"
+    python3 - "$db_path" "$addr_cidr" "$iface" <<'PY'
+import ipaddress
+import re
+import sqlite3
+import sys
+
+db_path = sys.argv[1]
+addr_cidr = sys.argv[2]
+iface = sys.argv[3]
+con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+row = con.execute(
+    "select name, routing from routings where selected = 1 order by id limit 1"
+).fetchone()
+if row is None:
+    print("DNS leak guard: missing selected daed routing")
+    raise SystemExit(1)
+name, routing = row
+guard_re = re.compile(
+    r"sip\([^)]*\) && !sip\([^)]*\)(?: && !dip\([^)]*\))? && dport\((?:53,\s*)?853\) -> block"
+)
+print("DNS leak guard")
+print(f"Routing: {name}")
+if addr_cidr:
+    interface = ipaddress.ip_interface(addr_cidr)
+    print(f"Interface: {iface}")
+    print(f"Gateway IP: {interface.ip}")
+    print(f"LAN CIDR: {interface.network}")
+else:
+    print("Interface: unknown")
+print("State: sealed" if guard_re.search(routing) else "State: not sealed")
+for line in routing.splitlines():
+    if guard_re.search(line.strip()):
+        print(f"Rule: {line.strip()}")
+        break
+con.close()
+PY
+}
+
+case "${1:-status}" in
+    status)
+        status_guard
+        ;;
+    apply|seal)
+        apply_guard
+        if [ "${DNS_LEAK_GUARD_NO_RESTART:-0}" != "1" ] && systemctl --quiet is-active daed.service 2>/dev/null; then
+            systemctl restart daed.service
+        fi
+        ;;
+    *)
+        printf 'Usage: dns-leak-guard [status|apply|seal]\n' >&2
+        exit 1
+        ;;
+esac
