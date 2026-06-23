@@ -40,18 +40,34 @@ flowchart TD
 
 ## First Boot — IMPORTANT
 
-The image ships with **no proxy node**. Until you add one, daed's
-`fallback: proxy` has nowhere to send overseas traffic, so **all overseas traffic
-(and overseas DNS via DoH) is blackholed**. Mainland sites keep working.
+The image ships with **no proxy node**. Until you add one, daed has nothing to send
+overseas traffic to, so **all overseas traffic (and overseas DNS via DoH) is
+blackholed**. Mainland sites keep working.
+
+At first boot the appliance provisions daed automatically. daed (dae-wing) does not
+read a config file — its config lives in a database and is driven through a GraphQL
+API. A boot-time script (`daed-provision.sh`) therefore:
+
+1. creates the daed admin user (a strong random password is generated and written to
+   `/config/custom-services/daed/admin-credentials`, root-readable only),
+2. imports the DNS and routing rules (rendered with this gateway's real LAN IP),
+3. selects them as active — but does **not** "run" them yet, because the routing's
+   `fallback: proxy` references a proxy group that has no node.
 
 To make overseas traffic work:
 
-1. Open the daed dashboard:
+1. Read the generated dashboard password:
+   ```bash
+   sudo cat /config/custom-services/daed/admin-credentials
+   ```
+2. Open the daed dashboard and log in as `admin`:
    ```text
    http://<gateway-ip>:2023
    ```
-2. Create the daed admin user.
-3. Add a proxy node / subscription and select it for the default group.
+   Change the password after logging in.
+3. Add a proxy node / subscription and add it to the `proxy` group.
+4. Apply / run the config in the dashboard. This is the step that actually starts
+   forwarding overseas traffic — nothing routes until you do this.
 
 The LAN IP is bound at boot by a late-bind script — the image never hard-codes an
 IP or binds `0.0.0.0`.
@@ -60,15 +76,18 @@ IP or binds `0.0.0.0`.
 
 ```text
 /config/custom-services/bin/{daed,mosdns,smartdns}
-/config/custom-services/daed/config.dae          # rendered from .template each boot
+/config/custom-services/daed/config.dae          # source-of-truth, rendered from .template each boot,
+                                                 #   imported into daed's wing.db via GraphQL (not read directly by daed)
+/config/custom-services/daed/admin-credentials   # auto-generated dashboard login (root-only)
 /config/custom-services/mosdns/config.yaml        # rendered from .template each boot
 /config/custom-services/smartdns/smartdns.conf
 /config/custom-services/geo/{geoip.dat,geosite.dat,geolocation-cn.txt,geolocation-!cn.txt}
-/config/custom-services/scripts/{custom-services-latebind.sh,geosite-update.sh}
+/config/custom-services/scripts/{custom-services-latebind.sh,geosite-update.sh,daed-provision.sh}
 ```
 
 Services: `daed.service`, `mosdns.service`, `smartdns.service`,
-`custom-services-latebind.service` (oneshot at boot), `geosite-update.timer` (weekly).
+`custom-services-latebind.service` (oneshot at boot, also runs `daed-provision.sh`),
+`geosite-update.timer` (weekly).
 
 ## Building
 
@@ -99,13 +118,25 @@ Shell syntax checks:
 bash -n packer/scripts/setup-gateway.sh
 bash -n packer/custom-services/scripts/custom-services-latebind.sh
 bash -n packer/custom-services/scripts/geosite-update.sh
+bash -n packer/custom-services/scripts/daed-provision.sh
 ```
 
 Full `packer validate` and the OVA build run in GitHub Actions.
 
+## How daed Config Is Loaded
+
+daed (dae-wing) does NOT read `config.dae` from disk. Its `-c` flag points at a
+directory holding a SQLite database (`wing.db`); at startup daed serves only the
+config row marked selected in that DB, and config is created/updated through the
+GraphQL API on `:2023`. We keep `config.dae` as the human-readable source of truth,
+render the LAN IP into it at boot, then `daed-provision.sh` extracts the `dns` and
+`routing` blocks and imports them via GraphQL (`createDns` / `createRouting` accept
+raw dae-format text), selects them, and stops short of "run" (see First Boot).
+
 ## Known Limitation
 
-`daed/config.dae` includes `dip(doh.pub) -> must_direct`. dae's `dip()` normally
-matches IP/CIDR/geoip, not domains; this rule must be confirmed with
-`daed validate` on a booted OVA. If it errors, replace with
-`domain(suffix:doh.pub)` or pin doh.pub's fixed IPs.
+The imported routing includes `dip(doh.pub) -> must_direct`. dae's `dip()` normally
+matches IP/CIDR/geoip, not domains; this rule must be confirmed with `daed validate`
+on a booted OVA (or by checking the dashboard accepts the routing). If it errors,
+replace with `domain(suffix:doh.pub)` or pin doh.pub's fixed IPs in
+`packer/custom-services/daed/config.dae`.

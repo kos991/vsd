@@ -64,6 +64,7 @@ Assert-PathExists 'packer/custom-services/mosdns/config.yaml' 'MosDNS config mus
 Assert-PathExists 'packer/custom-services/daed/config.dae' 'daed config must exist.'
 Assert-PathExists 'packer/custom-services/scripts/custom-services-latebind.sh' 'Late-bind script must exist.'
 Assert-PathExists 'packer/custom-services/scripts/geosite-update.sh' 'Geosite updater must exist.'
+Assert-PathExists 'packer/custom-services/scripts/daed-provision.sh' 'daed GraphQL provisioner must exist.'
 
 # --- SmartDNS ---
 Assert-FileContains 'packer/custom-services/smartdns/smartdns.conf' 'bind 127\.0\.0\.1:5335' 'SmartDNS must bind loopback:5335.'
@@ -89,6 +90,11 @@ Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh'
 Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh' 'Refusing unsafe' 'Late-bind must refuse unsafe binds.'
 Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'MIN_LINES=1000' 'Geosite updater must enforce a minimum line count.'
 Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'systemctl restart mosdns' 'Geosite updater must restart MosDNS on success.'
+Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh' 'daed-provision\.sh' 'Late-bind must invoke the daed GraphQL provisioner.'
+Assert-FileContains 'packer/custom-services/scripts/daed-provision.sh' 'graphql' 'daed provisioner must talk to the GraphQL endpoint.'
+Assert-FileContains 'packer/custom-services/scripts/daed-provision.sh' 'createRouting' 'daed provisioner must import routing via GraphQL.'
+Assert-FileContains 'packer/custom-services/scripts/daed-provision.sh' 'numberUsers' 'daed provisioner must be idempotent via numberUsers.'
+Assert-FileDoesNotContain 'packer/custom-services/scripts/daed-provision.sh' 'run\(dry:false\)' 'daed provisioner must NOT run config at first boot (no node yet).'
 
 # --- Provisioner ---
 Assert-FileContains 'packer/scripts/setup-gateway.sh' 'daeuniverse/daed' 'Provisioner must download daed.'

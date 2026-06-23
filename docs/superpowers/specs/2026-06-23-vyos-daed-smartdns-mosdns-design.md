@@ -107,6 +107,55 @@ daed (eBPF :12345): allow client→gateway:53 + SmartDNS egress; block other DNS
 - `sed` replaces `<LAN_BIND_IP>` and `<LAN_SUBNET>` in MosDNS + daed templates.
 - Refuse unsafe binds (empty / 0.0.0.0 / 127.*).
 - Link + enable + start `daed`, `mosdns`, `smartdns` systemd services.
+- After daed is up, invoke `daed-provision.sh` (see D) to load the rendered
+  routing/dns into daed's database via GraphQL.
+
+### D. `daed-provision.sh` (GraphQL config import) — DESIGN CORRECTION
+
+**Why this exists:** daed (dae-wing) does NOT read a file-based `config.dae`. The
+`-c` flag points at a directory holding the SQLite `wing.db`; dae boots with
+`EmptyConfig` and serves only the DB row marked `selected = true`. Config is
+provisioned exclusively through the GraphQL API at `http://localhost:2023/graphql`.
+A `config.dae` dropped in the directory is ignored. Verified against dae-wing `main`
+source (`cmd/run.go`, `db/db.go`, `graphql/service/config/mutation_utils.go`).
+
+So `config.dae` is repurposed as the **source-of-truth text** that the late-bind
+step renders (LAN IP) and this script imports. The GraphQL contract (verified from
+source):
+
+- `numberUsers` (unauth) — idempotency: if > 0, skip createUser.
+- `createUser(username, password): String!` — returns JWT directly; password must be
+  ≥6 chars with at least one letter and one number. `token(username,password)` if user
+  exists. Pass JWT as `Authorization: Bearer <token>`.
+- `createConfig(name, global: globalInput)` — `global` is a structured input
+  (lowerCamelCase of dae Global fields, all optional, empty = defaults).
+- `createDns(name, dns: String)` — `dns` is the raw text INSIDE the `dns { }` block
+  (resolver adds the wrapper; do NOT include it).
+- `createRouting(name, routing: String)` — raw text INSIDE `routing { }` (no wrapper).
+- `selectConfig/selectDns/selectRouting(id: ID!)` — pass returned ids verbatim
+  (base64 cursor encoding).
+- `run(dry: Boolean)` — applies the selected config and hot-reloads dae.
+
+**First-boot strategy (decided): import-and-select, do NOT run.**
+The committed routing ends in `fallback: proxy`. `run(dry:false)` FAILS if routing
+references a non-preset group (`proxy`) with zero nodes ("groups not defined" /
+"please add at least one node"). Since the appliance ships with NO node, the script:
+1. waits for `healthCheck`,
+2. createUser (or token) idempotently,
+3. createConfig (default global, but with `lanInterface`/`wanInterface` left auto) +
+   createDns (SmartDNS-fronted body) + createRouting (the rendered routing body,
+   `fallback: proxy` kept),
+4. selects all three,
+5. does **NOT** call `run` — daed forwards nothing until the user adds a node and
+   triggers run from the dashboard.
+
+This matches the README "overseas traffic blackholed until a proxy node is added"
+contract: nothing routes until the user provisions a node and applies. The
+provision script is idempotent (guarded by `numberUsers` and a sentinel file) so it
+is safe to re-run on every boot.
+
+The `dns`/`routing` bodies fed to GraphQL are extracted from the rendered
+`config.dae` (strip the `dns {`/`routing {` wrappers) — single source of truth.
 
 ### B. `geosite-update.sh` + systemd `.service`/`.timer` (weekly)
 - Download latest CN and !CN text lists.

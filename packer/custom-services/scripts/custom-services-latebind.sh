@@ -60,3 +60,7 @@ systemctl enable smartdns.service mosdns.service daed.service
 systemctl restart smartdns.service
 systemctl restart mosdns.service
 systemctl restart daed.service
+
+# daed does not read config.dae from disk; load the rendered dns/routing into its
+# database via GraphQL (import-and-select, no run until a node is added). Idempotent.
+"${BASE}/scripts/daed-provision.sh" || logger -t daed-provision "daed provisioning failed"

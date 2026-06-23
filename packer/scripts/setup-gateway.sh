@@ -87,7 +87,7 @@ curl -fL --retry 5 --retry-delay 3 \
 if [ -d /tmp/custom-services ]; then
   cp -a /tmp/custom-services/. "${BASE}/"
 fi
-chmod +x "${SCRIPTS_DIR}/custom-services-latebind.sh" "${SCRIPTS_DIR}/geosite-update.sh"
+chmod +x "${SCRIPTS_DIR}/custom-services-latebind.sh" "${SCRIPTS_DIR}/geosite-update.sh" "${SCRIPTS_DIR}/daed-provision.sh"
 
 # Templates the late-bind step renders each boot.
 cp -f "${DAED_DIR}/config.dae" "${DAED_DIR}/config.dae.template"
