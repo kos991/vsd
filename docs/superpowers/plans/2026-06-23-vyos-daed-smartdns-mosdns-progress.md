@@ -85,3 +85,34 @@ node is added via daed UI on `:2023`). After this, full `smoke.ps1` should pass.
 IP/CIDR/geoip, not domains. Not catchable by `packer validate` / `bash -n`. Confirm
 with `daed validate` on a booted OVA; fallback `domain(suffix:doh.pub)` or pin doh.pub
 fixed IPs.
+
+## Final Whole-Branch Review (commit b880877 fixes applied)
+
+Reviewer checked the full branch diff and verified real GitHub release asset names.
+
+**Fixed:**
+- **C1 (Critical)** — SmartDNS download regex matched no real asset (asset is
+  `smartdns-x86_64`, no extension; old regex required `linux`→arch→`.tar.gz`). Would
+  have failed every `packer build`. Fixed to `^smartdns-x86_64$`. daed/mosdns regexes
+  verified correct against live API (`daed-linux-x86_64.zip`, `mosdns-linux-amd64.zip`).
+- **I2 (Important)** — mosdns SIGHUP reload was unreliable. Changed
+  `geosite-update.sh` to `systemctl restart mosdns.service` and the unit's
+  `ExecReload` to `systemctl try-restart`. Smoke assertion updated to match.
+- **M2/M3 (Minor)** — Removed stale `overlay/` rules from `.gitattributes`; added LF
+  enforcement for `*.dae` and `*.conf`.
+
+**OPEN — needs your decision (I1, Important):**
+The reviewer flagged that `daed` (dae-wing) is a GraphQL/DB-driven backend that stores
+config in `wing.db`, and may NOT auto-import a `config.dae` file dropped into its
+`-c` directory. If so, the entire committed routing block (DNS anti-escape, CN-direct,
+SmartDNS upstream, fallback proxy) and the late-bind `sed` rendering would be dead work —
+the box would boot with none of the intended routing. The reviewer could not confirm
+daed's import behavior from docs alone (rated Important, not Critical). This requires
+verification on a booted OVA and may need a first-boot GraphQL import step. NOT yet
+addressed — see decision needed below.
+
+**Confirmed clean:** all committed config contracts (ports 5335, paths, placeholders,
+the 7 daed routing rules in exact order, late-bind 30s loop + unsafe-bind guard,
+geosite >1000-line failsafe), CI step sequence, no baked-in secrets, no dangling
+references to deleted routes (except the two diagnostic scripts, M1 — retained
+intentionally).
