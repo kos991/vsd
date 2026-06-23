@@ -71,7 +71,7 @@ if [ "${DAED_VERSION}" = "latest" ]; then
 fi
 download_latest_asset "daeuniverse/daed" "daed-linux-x86_64\\.zip$" "daed" "${DAED_VERSION}"
 download_latest_asset "IrineSistiana/mosdns" "linux.*(x86_64|amd64).*(zip|tar\\.gz|tgz)$" "mosdns"
-download_latest_asset "pymumu/smartdns" "linux.*(x86_64|amd64).*(tar\\.gz|tgz)$" "smartdns"
+download_latest_asset "pymumu/smartdns" "^smartdns-x86_64$" "smartdns"
 
 # geo data: daed dat files + mosdns geosite txt lists
 curl -fL --retry 5 --retry-delay 3 \
@@ -119,7 +119,7 @@ Wants=network-online.target smartdns.service
 [Service]
 Type=simple
 ExecStart=/config/custom-services/bin/mosdns start -c /config/custom-services/mosdns/config.yaml
-ExecReload=/bin/kill -HUP $MAINPID
+ExecReload=/bin/systemctl try-restart mosdns.service
 Restart=on-failure
 RestartSec=3
 LimitNOFILE=1048576

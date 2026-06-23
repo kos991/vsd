@@ -26,7 +26,7 @@ install -m 0644 "${tmp_cn}" "${GEO_DIR}/geolocation-cn.txt"
 install -m 0644 "${tmp_noncn}" "${GEO_DIR}/geolocation-!cn.txt"
 
 if systemctl is-active --quiet mosdns.service; then
-  systemctl reload mosdns.service || systemctl restart mosdns.service
+  systemctl restart mosdns.service
 fi
 
 echo "Geosite lists updated (cn=${cn_lines}, noncn=${noncn_lines})."

@@ -88,7 +88,7 @@ Assert-FileContains 'packer/custom-services/daed/config.dae' 'dip\(geoip:cn\) ->
 Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh' 'seq 1 30' 'Late-bind must retry up to 30s for the LAN IP.'
 Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh' 'Refusing unsafe' 'Late-bind must refuse unsafe binds.'
 Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'MIN_LINES=1000' 'Geosite updater must enforce a minimum line count.'
-Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'systemctl reload mosdns' 'Geosite updater must reload MosDNS on success.'
+Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'systemctl restart mosdns' 'Geosite updater must restart MosDNS on success.'
 
 # --- Provisioner ---
 Assert-FileContains 'packer/scripts/setup-gateway.sh' 'daeuniverse/daed' 'Provisioner must download daed.'
