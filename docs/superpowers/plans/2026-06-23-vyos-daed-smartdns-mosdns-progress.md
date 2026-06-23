@@ -22,8 +22,11 @@ realizes [the design spec](../specs/2026-06-23-vyos-daed-smartdns-mosdns-design.
 | 6 | Geosite updater (>1000-line failsafe) | ✅ done | `7bd5883` |
 | 7 | Rewrite setup-gateway.sh provisioner | ✅ done | `59d3289` |
 | 8 | Drop CI inline config generation | ✅ done | `0885510` |
-| 9 | Rewrite smoke.ps1 for VyOS/packer contract | ⬜ todo | — |
-| 10 | Rewrite README.md (mermaid, firstboot blackhole) | ⬜ todo | — |
+| 9 | Rewrite smoke.ps1 for VyOS/packer contract | ✅ done | `1c2d7ed` |
+| 10 | Rewrite README.md (mermaid, firstboot blackhole) | ✅ done | `fb9b6dd` |
+
+**All 10 tasks complete.** `tests/smoke.ps1` passes; `bash -n` clean on all three
+shell scripts. `packer validate` remains CI-only (not installed locally).
 
 ## Per-Task Notes
 
