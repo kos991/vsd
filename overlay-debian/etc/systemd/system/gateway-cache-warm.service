@@ -1,9 +1,0 @@
-[Unit]
-Description=Warm gateway DNS and safe connection cache
-After=network-online.target paopaodns.service daed.service
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/cache-manager run-now
-
