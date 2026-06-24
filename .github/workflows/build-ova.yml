@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       base_iso_url:
-        description: "可选：已有 VyOS 1.5 x86_64 ISO URL；为空时自动从 dd010101/vyos-jenkins 构建 circinus/1.5"
+        description: "可选：已有 VyOS 1.5 x86_64 ISO URL；为空时自动下载最新 VyOS 1.5 rolling ISO"
         required: false
         type: string
         default: ""
@@ -38,8 +38,7 @@ jobs:
       BASE_ISO_URL: ${{ inputs.base_iso_url || vars.BASE_ISO_URL || '' }}
       DAED_VERSION: ${{ inputs.daed_version || 'latest' }}
       DISK_SIZE: ${{ inputs.disk_size || '8192' }}
-      VYOS_JENKINS_REPO: https://github.com/dd010101/vyos-jenkins.git
-      VYOS_STREAM_BRANCH: circinus
+      VYOS_NIGHTLY_REPO: vyos/vyos-nightly-build
       DIST_DIR: ${{ github.workspace }}/dist
 
     steps:
@@ -54,9 +53,8 @@ jobs:
           {
             echo "run_id=${GITHUB_RUN_ID}"
             echo "sha=${GITHUB_SHA}"
-            echo "base_iso_url=${BASE_ISO_URL:-<auto-build-from-vyos-jenkins>}"
-            echo "vyos_jenkins_repo=${VYOS_JENKINS_REPO}"
-            echo "vyos_stream_branch=${VYOS_STREAM_BRANCH}"
+            echo "base_iso_url=${BASE_ISO_URL:-<auto-download-vyos-1.5-rolling>}"
+            echo "vyos_nightly_repo=${VYOS_NIGHTLY_REPO}"
             echo "daed_version=${DAED_VERSION}"
             echo "disk_size=${DISK_SIZE}"
           } >"${DIST_DIR}/ci-context.txt"
@@ -101,24 +99,15 @@ jobs:
             echo "Using provided BASE_ISO_URL."
             curl -fL --retry 5 --retry-delay 5 "${BASE_ISO_URL}" -o "${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
           else
-            echo "BASE_ISO_URL is empty. Building VyOS 1.5/circinus ISO from ${VYOS_JENKINS_REPO}."
-            BUILD_ROOT="${RUNNER_TEMP}/vyos-jenkins"
-            rm -rf "${BUILD_ROOT}"
-            git clone --depth 1 "${VYOS_JENKINS_REPO}" "${BUILD_ROOT}"
-
-            sudo "${BUILD_ROOT}/new/install-dependencies.sh"
-
-            pushd "${BUILD_ROOT}/new"
-            ./package_builder.py "${VYOS_STREAM_BRANCH}"
-            ./image_builder.py "${VYOS_STREAM_BRANCH}"
-            popd
-
-            ISO_PATH="$(find "${BUILD_ROOT}" -type f \( -name '*.iso' -o -name '*.hybrid.iso' \) | sort | tail -n 1)"
-            if [ -z "${ISO_PATH}" ]; then
-              echo "VyOS 1.5 ISO was not produced by vyos-jenkins." >&2
+            echo "BASE_ISO_URL is empty. Downloading latest VyOS 1.5 rolling ISO from ${VYOS_NIGHTLY_REPO}."
+            RELEASE_JSON="$(curl -fsSL --retry 5 --retry-delay 5 "https://api.github.com/repos/${VYOS_NIGHTLY_REPO}/releases/latest")"
+            ISO_URL="$(echo "${RELEASE_JSON}" | jq -r '.assets[] | select(.name | test("^vyos-.*-rolling-generic-amd64\\.iso$")) | .browser_download_url' | head -n 1)"
+            if [ -z "${ISO_URL}" ] || [ "${ISO_URL}" = "null" ]; then
+              echo "Unable to resolve latest VyOS rolling amd64 ISO from ${VYOS_NIGHTLY_REPO}." >&2
               exit 1
             fi
-            cp "${ISO_PATH}" "${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
+            echo "Resolved ISO: ${ISO_URL}"
+            curl -fL --retry 5 --retry-delay 5 "${ISO_URL}" -o "${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
           fi
 
           ISO_FILE="${GITHUB_WORKSPACE}/packer/cache/vyos-1.5.iso"
