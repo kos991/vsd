@@ -91,27 +91,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MIRROR_ARGS=""
+          BUILD_CMD="sudo --preserve-env ./build-vyos-image --architecture amd64 --build-by 'daed-gateway'"
+          BUILD_CMD="${BUILD_CMD} --custom-package btop --custom-package nexttrace"
+          BUILD_CMD="${BUILD_CMD} --custom-package tree --custom-package ripgrep --custom-package gdu"
+
           if [ "${USE_CHINA_MIRROR}" = "true" ]; then
-            MIRROR_ARGS="--debian-mirror https://mirrors.tuna.tsinghua.edu.cn/debian \
-              --debian-security-mirror https://mirrors.tuna.tsinghua.edu.cn/debian-security"
+            BUILD_CMD="${BUILD_CMD} --debian-mirror https://mirrors.tuna.tsinghua.edu.cn/debian"
+            BUILD_CMD="${BUILD_CMD} --debian-security-mirror https://mirrors.tuna.tsinghua.edu.cn/debian-security"
             echo "Using Tsinghua Debian mirror."
           fi
+
+          BUILD_CMD="${BUILD_CMD} generic"
 
           docker run --rm --privileged \
             -v "${GITHUB_WORKSPACE}/vyos-build:/vyos" \
             -w /vyos \
             "${VYOS_BUILD_IMAGE}" \
-            bash -c "sudo --preserve-env ./build-vyos-image \
-              --architecture amd64 \
-              --build-by 'daed-gateway' \
-              --custom-package btop \
-              --custom-package nexttrace \
-              --custom-package tree \
-              --custom-package ripgrep \
-              --custom-package gdu \
-              ${MIRROR_ARGS} \
-              generic"
+            bash -c "${BUILD_CMD}"
 
       - name: Verify ISO artifact
         shell: bash
