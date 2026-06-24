@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+chmod +x \
+  /usr/local/bin/daed \
+  /usr/local/bin/mosdns \
+  /usr/local/bin/smartdns \
+  /opt/custom-services/scripts/late-bind.sh \
+  /opt/custom-services/scripts/custom-services-latebind.sh \
+  /opt/custom-services/scripts/daed-provision.sh \
+  /opt/custom-services/scripts/geosite-update.sh
+
+ln -sf /opt/custom-services/geo/geoip.dat /opt/custom-services/daed/geoip.dat
+ln -sf /opt/custom-services/geo/geosite.dat /opt/custom-services/daed/geosite.dat
+
+cp -f /opt/custom-services/daed/config.dae /opt/custom-services/daed/config.dae.template
+cp -f /opt/custom-services/mosdns/config.yaml /opt/custom-services/mosdns/config.yaml.template
+
+systemctl enable daed.service mosdns.service smartdns.service late-bind.service

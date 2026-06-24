@@ -104,9 +104,10 @@ Assert-FileContains 'packer/scripts/setup-gateway.sh' 'geolocation-!cn\.txt' 'Pr
 Assert-FileDoesNotContain 'packer/scripts/setup-gateway.sh' 'bind 127\.0\.0\.1:6053' 'Provisioner must not inline old SmartDNS config.'
 
 # --- CI ---
-Assert-FileContains '.github/workflows/build-ova.yml' 'workflow_dispatch' 'Workflow must support manual Run workflow.'
-Assert-FileDoesNotContain '.github/workflows/build-ova.yml' 'Generate config stubs' 'Workflow must not inline-generate configs.'
-Assert-FileContains '.github/workflows/build-ova.yml' 'vyos15-daed-gateway-ova' 'Workflow must upload the VyOS OVA artifact.'
+Assert-FileContains '.github/workflows/build-from-source.yml' 'workflow_dispatch' 'Workflow must support manual Run workflow.'
+Assert-FileContains '.github/workflows/build-from-source.yml' 'vyos/vyos-build:sagitta' 'Workflow must build via the VyOS Docker framework.'
+Assert-FileContains '.github/workflows/build-from-source.yml' 'sudo make vmware' 'Workflow must build the VMware OVA target.'
+Assert-FileContains '.github/workflows/build-from-source.yml' 'vyos-source-daed-gateway-ova' 'Workflow must upload the source-built VyOS OVA artifact.'
 
 # --- README ---
 Assert-FileContains 'README.md' 'VyOS' 'README must document the VyOS route.'
