@@ -63,31 +63,31 @@ source "qemu" "vyos15" {
   ssh_password = var.ssh_password
   ssh_timeout  = "45m"
 
-  boot_wait = "60s"
+  boot_wait = "10s"
 
   boot_command = [
-    "<enter><wait90s>",
+    "<enter>",
+    "<wait60s>",
     "${var.ssh_username}<enter><wait>",
     "${var.ssh_password}<enter><wait>",
     "configure<enter><wait>",
-    "set interfaces ethernet eth0 address dhcp<enter>",
-    "set service ssh port 22<enter>",
-    "set system name-server 1.1.1.1<enter>",
-    "commit<enter><wait>",
-    "save<enter><wait>",
-    "exit<enter><wait>",
-    "install image<enter><wait5s>",
-    "Yes<enter><wait>",
-    "<enter><wait>",
+    "set interfaces ethernet eth0 address 'dhcp'<enter><wait>",
+    "set system name-server '1.1.1.1'<enter><wait>",
+    "set service ssh port '22'<enter><wait>",
+    "commit<enter><wait2s>",
+    "save<enter><wait2s>",
+    "exit<enter><wait1s>",
+    "install image<enter><wait3s>",
+    "Yes<enter><wait3s>",
+    "<enter><wait3s>",
     "${var.ssh_password}<enter><wait>",
     "${var.ssh_password}<enter><wait>",
-    "K<enter><wait>",
-    "<enter><wait>",
-    "Y<enter><wait>",
-    "Y<enter><wait>",
-    "1<enter><wait>",
-    "reboot<enter><wait>",
-    "y<enter>"
+    "K<enter><wait3s>",
+    "<enter><wait2s>",
+    "Y<enter><wait3s>",
+    "Y<enter><wait3s>",
+    "1<enter><wait3s>",
+    "<enter><wait10s>"
   ]
 
   shutdown_command = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
