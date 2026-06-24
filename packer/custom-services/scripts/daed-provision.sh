@@ -87,9 +87,14 @@ if [ "${num:-0}" = "0" ]; then
     log "Created daed admin user '${ADMIN_USER}'; credentials written to ${CRED_FILE}."
   fi
 else
-  log "A daed user already exists; cannot derive token non-interactively. Skipping import."
-  touch "$SENTINEL"
-  exit 0
+  if [ -f "$CRED_FILE" ]; then
+    log "A daed user already exists and credentials are present; skipping import."
+    touch "$SENTINEL"
+    exit 0
+  fi
+  log "A daed user already exists but ${CRED_FILE} is missing; refusing to mark provisioned."
+  log "Reset wing.db or log in manually, then re-run this script."
+  exit 1
 fi
 
 if [ -z "$TOKEN" ]; then log "Empty token; aborting."; exit 1; fi

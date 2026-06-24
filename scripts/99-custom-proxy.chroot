@@ -15,4 +15,6 @@ ln -sf /opt/custom-services/geo/geosite.dat /opt/custom-services/daed/geosite.da
 cp -f /opt/custom-services/daed/config.dae /opt/custom-services/daed/config.dae.template
 cp -f /opt/custom-services/mosdns/config.yaml /opt/custom-services/mosdns/config.yaml.template
 
-systemctl enable daed.service mosdns.service smartdns.service late-bind.service
+# late-bind renders the LAN IP/subnet first, then starts the stack. Enabling the
+# individual services here races against placeholder rendering on first boot.
+systemctl enable late-bind.service

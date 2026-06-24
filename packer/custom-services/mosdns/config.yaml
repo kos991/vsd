@@ -39,16 +39,28 @@ plugins:
     type: sequence
     args:
       - exec: "$cache"
-      - matches: "qname $geosite_cn"
+      - matches: has_resp
+        exec: accept
+      - matches:
+          - qname $geosite_cn
         exec: "$forward_smartdns"
-      - matches: "qname $geosite_noncn"
+      - matches: has_resp
+        exec: accept
+      - matches:
+          - qname $geosite_noncn
         exec: "$forward_doh"
+      - matches: has_resp
+        exec: accept
       - exec: "$forward_doh"
 
-servers:
-  - exec: main_sequence
-    listeners:
-      - protocol: udp
-        addr: "<LAN_BIND_IP>:53"
-      - protocol: tcp
-        addr: "<LAN_BIND_IP>:53"
+  - tag: udp_server
+    type: udp_server
+    args:
+      entry: main_sequence
+      listen: "<LAN_BIND_IP>:53"
+
+  - tag: tcp_server
+    type: tcp_server
+    args:
+      entry: main_sequence
+      listen: "<LAN_BIND_IP>:53"
