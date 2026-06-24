@@ -290,18 +290,21 @@ jobs:
             "${VYOS_BUILD_IMAGE}" \
             bash -lc "${BUILD_CMD}"
 
+          sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}/vyos-build/build"
           echo "Contents of vyos-build/build/:"
-          find "${GITHUB_WORKSPACE}/vyos-build/build" -maxdepth 1 -type f -print -exec ls -lh {} \;
+          find "${GITHUB_WORKSPACE}/vyos-build/build" -maxdepth 2 -type f -print -exec ls -lh {} \;
 
       - name: Verify ISO artifact
         shell: bash
         run: |
           set -euo pipefail
+          sudo chown -R "$(id -u):$(id -g)" vyos-build/build
           ISO="$(
             find vyos-build/build -maxdepth 1 -type f \
-              \( -name 'live-image-amd64.hybrid.iso' -o -name 'vyos-*-generic-amd64.iso' \) |
-              sort |
-              head -n 1
+              \( -name 'live-image-*.hybrid.iso' -o -name 'vyos-*.iso' \) \
+              -printf '%s %p\n' |
+              sort -nr |
+              awk 'NR == 1 { $1=""; sub(/^ /, ""); print; exit }'
           )"
           if [ -z "${ISO}" ]; then
             echo "No ISO found in vyos-build/build." >&2

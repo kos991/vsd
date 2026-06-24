@@ -114,6 +114,8 @@ Assert-FileContains '.github/workflows/build-ova.yml' 'vyos15-daed-gateway-iso' 
 Assert-FileContains '.github/workflows/build-ova.yml' 'direct-list\.txt' 'Workflow must download an existing CN rules text source.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'proxy-list\.txt' 'Workflow must download an existing overseas rules text source.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'daed-provision\.sh "\$\{CUSTOM\}/scripts/"' 'Workflow must inject the daed GraphQL provisioner.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'sudo chown -R "\$\(id -u\):\$\(id -g\)" .*vyos-build/build' 'Workflow must reclaim Docker root-owned build artifacts before verify/upload.'
+Assert-FileContains '.github/workflows/build-ova.yml' "name 'vyos-\*\.iso'" 'Workflow must accept the actual VyOS ISO artifact name.'
 Assert-FileDoesNotContain '.github/workflows/build-ova.yml' 'packer build' 'Workflow must not use Packer/QEMU to install the ISO.'
 
 # --- README ---
