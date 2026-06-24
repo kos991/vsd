@@ -103,11 +103,23 @@ jobs:
 
           BUILD_CMD="${BUILD_CMD} generic"
 
+          set +e
           docker run --rm --privileged \
             -v "${GITHUB_WORKSPACE}/vyos-build:/vyos" \
             -w /vyos \
             "${VYOS_BUILD_IMAGE}" \
             bash -c "${BUILD_CMD}"
+          EXIT_CODE=$?
+          set -e
+
+          echo "Docker exit code: ${EXIT_CODE}"
+          echo "Contents of vyos-build/build/:"
+          ls -lah "${GITHUB_WORKSPACE}/vyos-build/build/" || echo "build/ directory does not exist"
+
+          if [ ${EXIT_CODE} -ne 0 ]; then
+            echo "ERROR: build-vyos-image failed with exit code ${EXIT_CODE}"
+            exit ${EXIT_CODE}
+          fi
 
       - name: Verify ISO artifact
         shell: bash
