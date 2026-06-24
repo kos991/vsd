@@ -1,0 +1,209 @@
+name: Build VyOS 1.5 daed Gateway OVA (source ISO + packer)
+
+# Two-stage 1a pipeline:
+#   Stage 1 — source-build a VyOS 1.5 ISO (vyos-build, generic flavor) with the
+#             nexttrace repo patch, extra utility packages, and optional China mirror.
+#   Stage 2 — feed that ISO to Packer, which installs the daed/mosdns/smartdns
+#             stack via setup-gateway.sh and exports a VMware OVA.
+#
+# Why two stages: `build-vyos-image` only emits an ISO/raw; a VMware OVA needs a
+# private signing tool we do not have. Packer (qemu install -> qemu-img -> hand
+# written OVF -> tar) is the real OVA path. See docs/PATCHES.md.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      daed_version:
+        description: "daed release tag, or latest"
+        required: true
+        type: string
+        default: latest
+      use_china_mirror:
+        description: "Use a China Debian mirror for the source ISO build"
+        required: false
+        type: boolean
+        default: false
+      disk_size:
+        description: "OVA virtual disk size in MB"
+        required: true
+        type: string
+        default: "8192"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VYOS_BUILD_REF: current
+  VYOS_BUILD_IMAGE: vyos/vyos-build:current
+  DAED_VERSION: ${{ inputs.daed_version || 'latest' }}
+  USE_CHINA_MIRROR: ${{ inputs.use_china_mirror || false }}
+  DISK_SIZE: ${{ inputs.disk_size || '8192' }}
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Stage 1: source-build the VyOS 1.5 ISO
+  # ----------------------------------------------------------------------------
+  build-iso:
+    name: Source-build VyOS 1.5 ISO
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: true
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clone vyos-build (${{ env.VYOS_BUILD_REF }})
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -b "${VYOS_BUILD_REF}" --single-branch \
+            https://github.com/vyos/vyos-build.git vyos-build
+
+      - name: Apply build-time patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          # nexttrace repo patch edits data/architectures/amd64.toml and is the
+          # only patch that genuinely takes effect at ISO build time on 1.5.
+          if [ -f patches/vyos-build/001-add-nexttrace-repo.patch ]; then
+            echo "Applying nexttrace repository patch..."
+            patch -p1 -d vyos-build < patches/vyos-build/001-add-nexttrace-repo.patch
+          fi
+
+      - name: Build ISO in vyos-build container
+        shell: bash
+        run: |
+          set -euo pipefail
+          MIRROR_ARGS=""
+          if [ "${USE_CHINA_MIRROR}" = "true" ]; then
+            MIRROR_ARGS="--debian-mirror https://mirrors.tuna.tsinghua.edu.cn/debian \
+              --debian-security-mirror https://mirrors.tuna.tsinghua.edu.cn/debian-security"
+            echo "Using Tsinghua Debian mirror."
+          fi
+
+          docker run --rm --privileged \
+            -v "${GITHUB_WORKSPACE}/vyos-build:/vyos" \
+            -w /vyos \
+            "${VYOS_BUILD_IMAGE}" \
+            bash -c "sudo --preserve-env ./build-vyos-image \
+              --architecture amd64 \
+              --build-by 'daed-gateway' \
+              --custom-package btop \
+              --custom-package nexttrace \
+              --custom-package tree \
+              --custom-package ripgrep \
+              --custom-package gdu \
+              ${MIRROR_ARGS} \
+              generic"
+
+      - name: Verify ISO artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ISO="vyos-build/build/live-image-amd64.hybrid.iso"
+          test -s "${ISO}"
+          sha256sum "${ISO}" | tee "${ISO}.sha256"
+          ls -lh "${ISO}"
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyos-1.5-source-iso
+          path: |
+            vyos-build/build/live-image-amd64.hybrid.iso
+            vyos-build/build/live-image-amd64.hybrid.iso.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # ----------------------------------------------------------------------------
+  # Stage 2: convert the source ISO into a daed-gateway OVA with Packer
+  # ----------------------------------------------------------------------------
+  build-ova:
+    name: Build OVA from source ISO
+    needs: build-iso
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Packer host tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl jq ovmf qemu-system-x86 qemu-utils tar unzip xorriso
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: latest
+
+      - name: Download source ISO
+        uses: actions/download-artifact@v4
+        with:
+          name: vyos-1.5-source-iso
+          path: packer/cache
+
+      - name: Resolve ISO path and checksum
+        id: iso
+        shell: bash
+        run: |
+          set -euo pipefail
+          ISO="${GITHUB_WORKSPACE}/packer/cache/live-image-amd64.hybrid.iso"
+          test -s "${ISO}"
+          SHA="$(sha256sum "${ISO}" | awk '{print $1}')"
+          echo "iso_path=${ISO}" >> "${GITHUB_OUTPUT}"
+          echo "iso_checksum=sha256:${SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Packer init
+        shell: bash
+        run: packer init packer/build.pkr.hcl
+
+      - name: Packer validate
+        shell: bash
+        run: |
+          packer validate \
+            -var "iso_url=${{ steps.iso.outputs.iso_path }}" \
+            -var "iso_checksum=${{ steps.iso.outputs.iso_checksum }}" \
+            -var "disk_size=${DISK_SIZE}" \
+            -var "daed_version=${DAED_VERSION}" \
+            packer/build.pkr.hcl
+
+      - name: Packer build
+        shell: bash
+        run: |
+          packer build \
+            -var "iso_url=${{ steps.iso.outputs.iso_path }}" \
+            -var "iso_checksum=${{ steps.iso.outputs.iso_checksum }}" \
+            -var "disk_size=${DISK_SIZE}" \
+            -var "daed_version=${DAED_VERSION}" \
+            packer/build.pkr.hcl
+
+      - name: Upload OVA
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyos15-daed-gateway-ova
+          path: artifacts/*.ova
+          if-no-files-found: error
+          retention-days: 14
+
+
