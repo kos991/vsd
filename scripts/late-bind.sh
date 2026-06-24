@@ -39,3 +39,7 @@ sed \
 systemctl restart smartdns.service
 systemctl restart mosdns.service
 systemctl restart daed.service
+
+# daed stores DNS/routing in wing.db, not config.dae. After rendering the
+# late-bound template, import and select it through the local GraphQL API.
+"${BASE}/scripts/daed-provision.sh" || logger -t daed-provision "daed provisioning failed"

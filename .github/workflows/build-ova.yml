@@ -174,6 +174,7 @@ jobs:
           download_release_asset "IrineSistiana/mosdns" "linux.*(x86_64|amd64).*(zip|tar\\.gz|tgz)$" "mosdns"
           download_release_asset "pymumu/smartdns" "^smartdns-x86_64$" "smartdns"
 
+          RULES_RAW_BASE="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release"
           curl -fL --retry 5 --retry-delay 3 \
             "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" \
             -o "${CUSTOM}/geo/geoip.dat"
@@ -181,17 +182,27 @@ jobs:
             "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" \
             -o "${CUSTOM}/geo/geosite.dat"
           curl -fL --retry 5 --retry-delay 3 \
-            "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geolocation-cn.txt" \
+            "${RULES_RAW_BASE}/direct-list.txt" \
             -o "${CUSTOM}/geo/geolocation-cn.txt"
           curl -fL --retry 5 --retry-delay 3 \
-            "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geolocation-!cn.txt" \
+            "${RULES_RAW_BASE}/proxy-list.txt" \
             -o "${CUSTOM}/geo/geolocation-!cn.txt"
 
           cp -a packer/custom-services/daed/. "${CUSTOM}/daed/"
           cp -a packer/custom-services/mosdns/. "${CUSTOM}/mosdns/"
           cp -a packer/custom-services/smartdns/. "${CUSTOM}/smartdns/"
           cp -a packer/custom-services/scripts/geosite-update.sh "${CUSTOM}/scripts/"
+          cp -a packer/custom-services/scripts/daed-provision.sh "${CUSTOM}/scripts/"
           cp scripts/late-bind.sh "${CUSTOM}/scripts/late-bind.sh"
+          for config_file in \
+            "${CUSTOM}/daed/config.dae" \
+            "${CUSTOM}/mosdns/config.yaml" \
+            "${CUSTOM}/smartdns/smartdns.conf" \
+            "${CUSTOM}/scripts/geosite-update.sh" \
+            "${CUSTOM}/scripts/daed-provision.sh" \
+            "${CUSTOM}/scripts/late-bind.sh"; do
+            sed -i 's|/config/custom-services|/opt/custom-services|g' "${config_file}"
+          done
 
           cp systemd/late-bind.service "${SYSTEMD}/late-bind.service"
           cat > "${SYSTEMD}/smartdns.service" <<'EOF'
@@ -261,6 +272,7 @@ jobs:
           set -euo pipefail
           BUILD_CMD="sudo --preserve-env ./build-vyos-image --architecture amd64 --build-by 'daed-gateway'"
           BUILD_CMD="${BUILD_CMD} --custom-package btop --custom-package nexttrace"
+          BUILD_CMD="${BUILD_CMD} --custom-package curl --custom-package jq"
           BUILD_CMD="${BUILD_CMD} --custom-package tree --custom-package ripgrep --custom-package gdu"
 
           if [ "${USE_CHINA_MIRROR}" = "true" ]; then
