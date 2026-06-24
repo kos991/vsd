@@ -2,11 +2,38 @@
 set -e
 
 BASE="/opt/custom-services"
-LAN_IF="${LAN_INTERFACE:-eth1}"
+LAN_IF_FILE="${BASE}/lan-interface"
 LAN_BIND_IP=""
 LAN_SUBNET=""
 
+resolve_lan_if() {
+  if [ -n "${LAN_INTERFACE:-}" ]; then
+    echo "${LAN_INTERFACE}"
+    return
+  fi
+
+  if [ -f "${LAN_IF_FILE}" ]; then
+    tr -d '[:space:]' <"${LAN_IF_FILE}"
+    return
+  fi
+
+  DEFAULT_IF="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
+  CAND="$(
+    ip -o -4 addr show scope global 2>/dev/null |
+      awk -v def="${DEFAULT_IF}" '
+        $2 == "lo" { next }
+        $2 ~ /^(dae|ifb|pim|docker|br-|veth|virbr)/ { next }
+        $2 != def { print $2; found=1; exit }
+        { fallback=$2 }
+        END { if (!found && fallback != "") print fallback }
+      '
+  )"
+
+  echo "${CAND:-${DEFAULT_IF}}"
+}
+
 for _ in $(seq 1 30); do
+  LAN_IF="$(resolve_lan_if)"
   if ip link show "${LAN_IF}" >/dev/null 2>&1; then
     LAN_CIDR="$(ip -o -4 addr show dev "${LAN_IF}" scope global | awk '{print $4; exit}')"
     if [ -n "${LAN_CIDR}" ]; then
@@ -21,7 +48,9 @@ done
 
 case "${LAN_BIND_IP}" in
   ""|"0.0.0.0"|"127."*)
-    echo "Refusing unsafe or missing LAN bind address: '${LAN_BIND_IP}'" >&2
+    echo "Refusing unsafe or missing LAN bind address: '${LAN_BIND_IP}' on interface '${LAN_IF:-unknown}'" >&2
+    ip -o link show >&2 || true
+    ip -o -4 addr show scope global >&2 || true
     exit 1
     ;;
 esac

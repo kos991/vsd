@@ -88,6 +88,8 @@ Assert-FileContains 'packer/custom-services/daed/config.dae' 'dip\(geoip:cn\) ->
 # --- Scripts ---
 Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh' 'seq 1 30' 'Late-bind must retry up to 30s for the LAN IP.'
 Assert-FileContains 'packer/custom-services/scripts/custom-services-latebind.sh' 'Refusing unsafe' 'Late-bind must refuse unsafe binds.'
+Assert-FileContains 'scripts/late-bind.sh' 'resolve_lan_if' 'Source-build late-bind must auto-detect the LAN interface.'
+Assert-FileDoesNotContain 'scripts/late-bind.sh' 'LAN_IF="\$\{LAN_INTERFACE:-eth1\}"' 'Source-build late-bind must not hardcode eth1 as the LAN interface.'
 Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'MIN_LINES=1000' 'Geosite updater must enforce a minimum line count.'
 Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'systemctl restart mosdns' 'Geosite updater must restart MosDNS on success.'
 Assert-FileContains 'packer/custom-services/scripts/geosite-update.sh' 'direct-list\.txt' 'Geosite updater must use an existing CN rules text source.'

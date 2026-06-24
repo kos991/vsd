@@ -5,14 +5,26 @@ BASE="/config/custom-services"
 LAN_IF_FILE="${BASE}/lan-interface"
 
 resolve_lan_if() {
+  if [ -n "${LAN_INTERFACE:-}" ]; then
+    echo "${LAN_INTERFACE}"
+    return
+  fi
+
   if [ -f "${LAN_IF_FILE}" ]; then
     tr -d '[:space:]' <"${LAN_IF_FILE}"
     return
   fi
-  DEFAULT_IF="$(ip route show default 2>/dev/null | awk '{print $5; exit}')"
+
+  DEFAULT_IF="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
   CAND="$(
-    ip -o -4 addr show scope global |
-      awk -v def="${DEFAULT_IF}" '$2 != "lo" && $2 != def {print $2; exit}'
+    ip -o -4 addr show scope global 2>/dev/null |
+      awk -v def="${DEFAULT_IF}" '
+        $2 == "lo" { next }
+        $2 ~ /^(dae|ifb|pim|docker|br-|veth|virbr)/ { next }
+        $2 != def { print $2; found=1; exit }
+        { fallback=$2 }
+        END { if (!found && fallback != "") print fallback }
+      '
   )"
   echo "${CAND:-${DEFAULT_IF}}"
 }
@@ -36,7 +48,9 @@ done
 
 case "${LAN_BIND_IP}" in
   ""|"0.0.0.0"|"127."*)
-    echo "Refusing unsafe or missing LAN bind address: '${LAN_BIND_IP}'" >&2
+    echo "Refusing unsafe or missing LAN bind address: '${LAN_BIND_IP}' on interface '${LAN_IF:-unknown}'" >&2
+    ip -o link show >&2 || true
+    ip -o -4 addr show scope global >&2 || true
     exit 1
     ;;
 esac
