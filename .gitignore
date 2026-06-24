@@ -1,5 +1,6 @@
 subtitles.txt
 build/
 dist/
+vyos-build/
 .tools/
 .superpowers/
