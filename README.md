@@ -7,7 +7,7 @@
 ```text
 LAN DNS -> MosDNS(<LAN_BIND_IP>:53)
 CN      -> SmartDNS(127.0.0.1:5335) -> 国内 DNS
-非 CN   -> dmit.wwa.im/dq + bwg.wwa.im/dq
+非 CN   -> bwg.wwa.im/dq
 
 LAN 流量 -> daed eBPF
 CN/private/control-plane -> direct
