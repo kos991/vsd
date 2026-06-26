@@ -347,6 +347,7 @@ jobs:
           path.write_text(text.replace(old, new))
           PY
 
+          sed -i 's/ansible \\/ansible \\\n    sudo \\/' vyos-vm-images/Dockerfile
           docker build -t vyos-vm-images:current -f vyos-vm-images/Dockerfile vyos-vm-images
 
           docker run --rm --privileged \
@@ -355,7 +356,8 @@ jobs:
             -v "${GITHUB_WORKSPACE}/vyos-build/build/vyos-daed-gateway-amd64.iso:/tmp/vyos.iso:ro" \
             -w /vm-build \
             vyos-vm-images:current \
-            bash -lc "ansible-playbook vmware.yml -e iso_local=/tmp/vyos.iso -e cloud_init=false -e ovf_template=simple -e disk_size=10 -e vyos_images_dir=/images"
+            bash -lc "set -euxo pipefail; ls -lh /tmp/vyos.iso; ansible --version; ansible-playbook vmware.yml -e iso_local=/tmp/vyos.iso -e cloud_init=false -e ovf_template=simple -e disk_size=10 -e vyos_images_dir=/images -vv" \
+            2>&1 | tee vyos-build/build/vmware-ova-build.log
 
           sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}/vyos-build/build"
           OVA="$(
@@ -372,6 +374,15 @@ jobs:
           cp "${OVA}" vyos-build/build/vyos-daed-gateway-amd64.ova
           sha256sum vyos-build/build/vyos-daed-gateway-amd64.ova | tee vyos-build/build/vyos-daed-gateway-amd64.ova.sha256
           ls -lh vyos-build/build/vyos-daed-gateway-amd64.ova
+
+      - name: Upload VMware OVA build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmware-ova-build-log
+          path: vyos-build/build/vmware-ova-build.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Upload injected ISO artifact
         uses: actions/upload-artifact@v4
