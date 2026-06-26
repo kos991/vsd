@@ -4,3 +4,5 @@ dist/
 vyos-build/
 .tools/
 .superpowers/
+key-export/
+key-export.zip

@@ -32,8 +32,14 @@ plugins:
   - tag: forward_doh
     type: forward
     args:
+      concurrent: 2
       upstreams:
-        - addr: "https://8.8.8.8/dns-query"
+        - addr: "https://dmit.wwa.im/dq"
+          dial_addr: "154.17.2.123:443"
+          enable_pipeline: true
+        - addr: "https://bwg.wwa.im/dq"
+          dial_addr: "104.194.84.105:443"
+          enable_pipeline: true
 
   - tag: main_sequence
     type: sequence

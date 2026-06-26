@@ -65,6 +65,11 @@ sed \
   -e "s|<LAN_SUBNET>|${LAN_SUBNET}|g" \
   "${BASE}/daed/config.dae.template" > "${BASE}/daed/config.dae"
 
+ln -sf "${BASE}/geo/geoip.dat" "${BASE}/daed/geoip.dat"
+ln -sf "${BASE}/geo/geosite.dat" "${BASE}/daed/geosite.dat"
+
+systemctl daemon-reload
+systemctl enable smartdns.service mosdns.service daed.service
 systemctl restart smartdns.service
 systemctl restart mosdns.service
 systemctl restart daed.service
