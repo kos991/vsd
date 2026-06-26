@@ -315,6 +315,64 @@ jobs:
           sha256sum vyos-build/build/vyos-daed-gateway-amd64.iso | tee vyos-build/build/vyos-daed-gateway-amd64.iso.sha256
           ls -lh vyos-build/build/vyos-daed-gateway-amd64.iso
 
+      - name: Build VMware OVA from injected ISO
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git clone -b current --single-branch \
+            https://github.com/vyos/vyos-vm-images.git vyos-vm-images
+
+          # GitHub-hosted runners do not ship VMware ovftool. An OVA is a tar
+          # archive containing OVF + manifest + VMDK, so keep the official
+          # vyos-vm-images install flow and replace only the final signed
+          # ovftool packaging step with an unsigned OVA tar.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("vyos-vm-images/roles/vmware/tasks/main.yml")
+          text = path.read_text()
+          old = '''- name: Converting the OVF to signed OVA
+            become: false
+            command: "ovftool --privateKey={{ vyos_vmware_private_key_path }} {{ vyos_vmware_ovf }} {{ vyos_vmware_ova }}"'''
+          new = '''- name: Create unsigned OVA archive
+            become: false
+            shell: >
+              tar -C /tmp -cf "{{ vyos_vmware_ova }}"
+              "{{ vyos_vmware_ovf | basename }}"
+              "{{ vyos_vmware_mf | basename }}"
+              "{{ vyos_vmware_vmdk | basename }}"'''
+          if old not in text:
+              raise SystemExit("Unable to patch vmware OVA packaging step")
+          path.write_text(text.replace(old, new))
+          PY
+
+          docker build -t vyos-vm-images:current -f vyos-vm-images/Dockerfile vyos-vm-images
+
+          docker run --rm --privileged \
+            -v "${GITHUB_WORKSPACE}/vyos-vm-images:/vm-build" \
+            -v "${GITHUB_WORKSPACE}/vyos-build/build:/images" \
+            -v "${GITHUB_WORKSPACE}/vyos-build/build/vyos-daed-gateway-amd64.iso:/tmp/vyos.iso:ro" \
+            -w /vm-build \
+            vyos-vm-images:current \
+            bash -lc "ansible-playbook vmware.yml -e iso_local=/tmp/vyos.iso -e cloud_init=false -e ovf_template=simple -e disk_size=10 -e vyos_images_dir=/images"
+
+          sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}/vyos-build/build"
+          OVA="$(
+            find vyos-build/build -maxdepth 1 -type f -name '*.ova' \
+              -printf '%s %p\n' |
+              sort -nr |
+              awk 'NR == 1 { $1=""; sub(/^ /, ""); print; exit }'
+          )"
+          if [ -z "${OVA}" ]; then
+            echo "No OVA found in vyos-build/build." >&2
+            find vyos-build/build -maxdepth 2 -type f -print -exec ls -lh {} \; || true
+            exit 1
+          fi
+          cp "${OVA}" vyos-build/build/vyos-daed-gateway-amd64.ova
+          sha256sum vyos-build/build/vyos-daed-gateway-amd64.ova | tee vyos-build/build/vyos-daed-gateway-amd64.ova.sha256
+          ls -lh vyos-build/build/vyos-daed-gateway-amd64.ova
+
       - name: Upload injected ISO artifact
         uses: actions/upload-artifact@v4
         with:
@@ -322,5 +380,15 @@ jobs:
           path: |
             vyos-build/build/vyos-daed-gateway-amd64.iso
             vyos-build/build/vyos-daed-gateway-amd64.iso.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload VMware OVA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyos15-daed-gateway-ova
+          path: |
+            vyos-build/build/vyos-daed-gateway-amd64.ova
+            vyos-build/build/vyos-daed-gateway-amd64.ova.sha256
           if-no-files-found: error
           retention-days: 14
