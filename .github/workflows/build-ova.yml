@@ -347,7 +347,18 @@ jobs:
           path.write_text(text.replace(old, new))
           PY
 
-          sed -i 's/ansible \\/ansible \\\n    sudo \\/' vyos-vm-images/Dockerfile
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("vyos-vm-images/Dockerfile")
+          text = path.read_text()
+          old = "    ansible \\\n    python3"
+          new = "    ansible \\\n    sudo \\\n    python3"
+          if old not in text:
+              raise SystemExit("Unable to add sudo to vyos-vm-images Dockerfile")
+          path.write_text(text.replace(old, new, 1))
+          PY
+
           docker build -t vyos-vm-images:current -f vyos-vm-images/Dockerfile vyos-vm-images
 
           docker run --rm --privileged \
