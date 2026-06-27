@@ -12,7 +12,7 @@ function Assert-FileContains {
         $failures.Add("Missing file: $Path")
         return
     }
-    $text = Get-Content -LiteralPath $full -Raw
+    $text = Get-Content -LiteralPath $full -Raw -Encoding UTF8
     if ($text -notmatch $Pattern) {
         $failures.Add($Message)
     }
@@ -25,7 +25,7 @@ function Assert-FileDoesNotContain {
         $failures.Add("Missing file: $Path")
         return
     }
-    $text = Get-Content -LiteralPath $full -Raw
+    $text = Get-Content -LiteralPath $full -Raw -Encoding UTF8
     if ($text -match $Pattern) {
         $failures.Add($Message)
     }
@@ -156,6 +156,10 @@ Assert-FileContains '.github/workflows/build-ova.yml' 'data/live-build-config/ho
 Assert-FileContains '.github/workflows/build-ova.yml' '\$\{CUSTOM\}/system' 'Workflow must stage Golden Image system config.'
 Assert-FileContains '.github/workflows/build-ova.yml' '/etc/sysctl\.d/99-daed-gateway\.conf' 'Workflow must inject sysctl tuning into the image.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'vyos15-daed-gateway-iso' 'Workflow must upload the source-built VyOS ISO artifact.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'Build command failed after producing an ISO; continuing without optional OVA\.' 'Workflow must continue when only the optional OVA phase fails after ISO output.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'No OVA found; skipping optional OVA artifact\.' 'Workflow must treat the OVA as an optional artifact.'
+Assert-FileContains '.github/workflows/build-ova.yml' "hashFiles\('vyos-build/build/vyos-daed-gateway-amd64\.ova'\) != ''" 'Workflow must upload the OVA artifact only when the OVA exists.'
+Assert-FileContains '.github/workflows/build-ova.yml' 'if-no-files-found: ignore' 'Workflow must not fail when the optional OVA artifact is absent.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'direct-list\.txt' 'Workflow must download an existing CN rules text source.'
 Assert-FileContains '.github/workflows/build-ova.yml' 'proxy-list\.txt' 'Workflow must download an existing overseas rules text source.'
 Assert-FileDoesNotContain '.github/workflows/build-ova.yml' 'pymumu/smartdns|smartdns\.service|daed-provision\.sh|updateDns|createDns' 'Workflow must not inject SmartDNS or daed DNS provisioning.'
@@ -180,6 +184,7 @@ Assert-FileContains 'README.md' 'DNS Hijack' 'README must document the VyOS fire
 Assert-FileContains 'README.md' 'Build VyOS 1\.5 daed Gateway Image' 'README must document the GitHub Actions build workflow.'
 Assert-FileContains 'README.md' 'vyos15-daed-gateway-iso' 'README must document the ISO artifact.'
 Assert-FileContains 'README.md' 'vyos15-daed-gateway-ova' 'README must document the OVA artifact.'
+Assert-FileContains 'README.md' 'best-effort' 'README must document that the OVA artifact is optional.'
 Assert-FileContains 'README.md' 'live-build includes\.chroot' 'README must explain how the existing VyOS build flow is used.'
 Assert-FileContains 'README.md' '99-daed-gateway\.conf' 'README must document where sysctl tuning is injected.'
 Assert-FileDoesNotContain 'README.md' '8\.8\.8\.8' 'README must not document public 8.8.8.8 overseas DoH.'

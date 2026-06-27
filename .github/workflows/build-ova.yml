@@ -377,16 +377,28 @@ jobs:
 
           BUILD_CMD="${BUILD_CMD} daed-gateway"
 
+          set +e
           docker run --rm --privileged \
             --sysctl net.ipv6.conf.lo.disable_ipv6=0 \
             -v "${GITHUB_WORKSPACE}/vyos-build:/vyos" \
             -w /vyos \
             "${VYOS_BUILD_IMAGE}" \
             bash -lc "${BUILD_CMD}"
+          BUILD_STATUS="$?"
+          set -e
 
-          sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}/vyos-build/build"
+          sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}/vyos-build/build" || true
           echo "Contents of vyos-build/build/:"
-          find "${GITHUB_WORKSPACE}/vyos-build/build" -maxdepth 2 -type f -print -exec ls -lh {} \;
+          find "${GITHUB_WORKSPACE}/vyos-build/build" -maxdepth 2 -type f -print -exec ls -lh {} \; || true
+
+          if [ "${BUILD_STATUS}" -ne 0 ]; then
+            if find "${GITHUB_WORKSPACE}/vyos-build/build" -maxdepth 1 -type f \( -name 'live-image-*.hybrid.iso' -o -name 'vyos-*.iso' \) | grep -q .; then
+              echo "Build command failed after producing an ISO; continuing without optional OVA."
+            else
+              echo "Build command failed before producing an ISO." >&2
+              exit "${BUILD_STATUS}"
+            fi
+          fi
 
       - name: Verify image artifacts
         shell: bash
@@ -416,9 +428,9 @@ jobs:
               awk 'NR == 1 { $1=""; sub(/^ /, ""); print; exit }'
           )"
           if [ -z "${OVA}" ]; then
-            echo "No OVA found in vyos-build/build." >&2
+            echo "No OVA found; skipping optional OVA artifact."
             find vyos-build/build -maxdepth 2 -type f -print -exec ls -lh {} \; || true
-            exit 1
+            exit 0
           fi
           cp "${OVA}" vyos-build/build/vyos-daed-gateway-amd64.ova
           sha256sum vyos-build/build/vyos-daed-gateway-amd64.ova | tee vyos-build/build/vyos-daed-gateway-amd64.ova.sha256
@@ -435,11 +447,12 @@ jobs:
           retention-days: 14
 
       - name: Upload VMware OVA artifact
+        if: ${{ hashFiles('vyos-build/build/vyos-daed-gateway-amd64.ova') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: vyos15-daed-gateway-ova
           path: |
             vyos-build/build/vyos-daed-gateway-amd64.ova
             vyos-build/build/vyos-daed-gateway-amd64.ova.sha256
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14

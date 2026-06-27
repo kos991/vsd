@@ -131,8 +131,8 @@ Build VyOS 1.5 daed Gateway Image
 
 产物：
 
-- `vyos15-daed-gateway-iso`
-- `vyos15-daed-gateway-ova`
+- `vyos15-daed-gateway-iso`：主产物，CI 必须产出。
+- `vyos15-daed-gateway-ova`：best-effort 可选产物；如果 GitHub Actions 环境无法完成 OVA 转换，构建仍以 ISO 为准。
 
 构建流程会复用项目现有的 VyOS 官方 `vyos/vyos-build:current` 源码构建链路。Golden Image 能力不另起一套目录，而是通过 live-build includes.chroot 和 hooks/live 注入到镜像里。
 
