@@ -169,7 +169,6 @@ net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
 ```
 
-当前 README 将 BBR、fq、IPv6 policy 作为镜像目标记录。实际落地应放入后续 systemd/sysctl 注入步骤，并由 smoke 测试固定。
 当前实现已通过 `/etc/sysctl.d/99-daed-gateway.conf` 注入：
 
 - `net.core.default_qdisc=fq`
@@ -178,12 +177,6 @@ net.ipv6.conf.default.disable_ipv6 = 1
 - `net.ipv6.conf.default.disable_ipv6=1`
 
 ## 验证
-
-本地静态验证：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tests/smoke.ps1
-```
 
 脚本语法验证：
 
