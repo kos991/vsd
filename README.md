@@ -93,7 +93,7 @@ daed 只做流量层分流：
 ## 目录
 
 ```text
-/config/custom-services/
+/opt/custom-services/
   bin/
     daed
     mosdns
@@ -109,12 +109,14 @@ daed 只做流量层分流：
     config.yaml
     config.yaml.template
   scripts/
-    custom-services-latebind.sh
+    late-bind.sh
     dns-hijack.sh
     geosite-update.sh
+  system/
+    sysctl.conf
 ```
 
-源码构建注入路径是 `/opt/custom-services/`。保留的 Packer 兼容路径会在安装后写入 `/config/custom-services/`。
+源码构建通过 live-build `includes.chroot` 将文件注入到 `/opt/custom-services/`。
 
 ## 构建
 
@@ -181,5 +183,5 @@ net.ipv6.conf.default.disable_ipv6 = 1
 脚本语法验证：
 
 ```bash
-bash -n scripts/late-bind.sh packer/custom-services/scripts/custom-services-latebind.sh packer/custom-services/scripts/dns-hijack.sh packer/custom-services/scripts/geosite-update.sh scripts/99-custom-proxy.chroot packer/scripts/setup-gateway.sh
+bash -n scripts/late-bind.sh packer/custom-services/scripts/dns-hijack.sh packer/custom-services/scripts/geosite-update.sh scripts/99-custom-proxy.chroot
 ```
