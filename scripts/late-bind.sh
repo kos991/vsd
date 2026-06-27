@@ -49,17 +49,6 @@ case "${LAN_IP}" in
 esac
 
 cp -f "${BASE}/mosdns/config.yaml.template" "${BASE}/mosdns/config.yaml"
-
-# Apply CAKE SQM to mitigate Bufferbloat
-# If SQM_BANDWIDTH is set (e.g., SQM_BANDWIDTH=1000m), it will act as a rate limiter.
-# Otherwise, it provides advanced AQM without a hard bandwidth limit.
-if [ -n "${SQM_BANDWIDTH}" ]; then
-  echo "Applying CAKE SQM with bandwidth ${SQM_BANDWIDTH} on ${LAN_IF}..."
-  tc qdisc replace dev "${LAN_IF}" root cake bandwidth "${SQM_BANDWIDTH}"
-else
-  echo "Applying CAKE SQM (AQM only) on ${LAN_IF}..."
-  tc qdisc replace dev "${LAN_IF}" root cake
-fi
 sed -i "s|<LAN_BIND_IP>|${LAN_IP}|g" "${BASE}/mosdns/config.yaml"
 "${BASE}/scripts/dns-hijack.sh" "${LAN_IF}"
 
