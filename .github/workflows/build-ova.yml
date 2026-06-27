@@ -96,8 +96,8 @@ jobs:
             "${CUSTOM}/geo" \
             "${CUSTOM}/daed" \
             "${CUSTOM}/mosdns" \
-            "${CUSTOM}/smartdns" \
             "${CUSTOM}/scripts" \
+            "${CUSTOM}/system" \
             "${BIN}" \
             "${SYSTEMD}" \
             "${HOOKS}"
@@ -172,7 +172,6 @@ jobs:
 
           download_release_asset "daeuniverse/daed" "daed-linux-x86_64\\.zip$" "daed" "${DAED_VERSION}"
           download_release_asset "IrineSistiana/mosdns" "linux.*(x86_64|amd64).*(zip|tar\\.gz|tgz)$" "mosdns"
-          download_release_asset "pymumu/smartdns" "^smartdns-x86_64$" "smartdns"
 
           RULES_RAW_BASE="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release"
           curl -fL --retry 5 --retry-delay 3 \
@@ -190,43 +189,29 @@ jobs:
 
           cp -a packer/custom-services/daed/. "${CUSTOM}/daed/"
           cp -a packer/custom-services/mosdns/. "${CUSTOM}/mosdns/"
-          cp -a packer/custom-services/smartdns/. "${CUSTOM}/smartdns/"
+          cp -a packer/custom-services/scripts/dns-hijack.sh "${CUSTOM}/scripts/"
           cp -a packer/custom-services/scripts/geosite-update.sh "${CUSTOM}/scripts/"
-          cp -a packer/custom-services/scripts/daed-provision.sh "${CUSTOM}/scripts/"
+          cp -a packer/custom-services/system/. "${CUSTOM}/system/"
           cp scripts/late-bind.sh "${CUSTOM}/scripts/late-bind.sh"
           for config_file in \
             "${CUSTOM}/daed/config.dae" \
             "${CUSTOM}/mosdns/config.yaml" \
-            "${CUSTOM}/smartdns/smartdns.conf" \
+            "${CUSTOM}/scripts/dns-hijack.sh" \
             "${CUSTOM}/scripts/geosite-update.sh" \
-            "${CUSTOM}/scripts/daed-provision.sh" \
-            "${CUSTOM}/scripts/late-bind.sh"; do
+            "${CUSTOM}/scripts/late-bind.sh" \
+            "${CUSTOM}/system/sysctl.conf"; do
             sed -i 's|/config/custom-services|/opt/custom-services|g' "${config_file}"
           done
 
+          mkdir -p "${INCLUDES}/etc/sysctl.d"
+          cp "${CUSTOM}/system/sysctl.conf" "${INCLUDES}/etc/sysctl.d/99-daed-gateway.conf"
+
           cp systemd/late-bind.service "${SYSTEMD}/late-bind.service"
-          cat > "${SYSTEMD}/smartdns.service" <<'EOF'
-          [Unit]
-          Description=SmartDNS CN resolver
-          After=network-online.target
-          Wants=network-online.target
-
-          [Service]
-          Type=simple
-          ExecStart=/usr/local/bin/smartdns -f -c /opt/custom-services/smartdns/smartdns.conf
-          Restart=on-failure
-          RestartSec=3
-          LimitNOFILE=1048576
-
-          [Install]
-          WantedBy=multi-user.target
-          EOF
-
           cat > "${SYSTEMD}/mosdns.service" <<'EOF'
           [Unit]
-          Description=MosDNS LAN-bound DNS front desk
-          After=network-online.target smartdns.service
-          Wants=network-online.target smartdns.service
+          Description=MosDNS LAN DNS engine
+          After=network-online.target
+          Wants=network-online.target
 
           [Service]
           Type=simple
@@ -243,8 +228,8 @@ jobs:
           cat > "${SYSTEMD}/daed.service" <<'EOF'
           [Unit]
           Description=daed eBPF transparent proxy
-          After=network-online.target mosdns.service smartdns.service
-          Wants=network-online.target mosdns.service smartdns.service
+          After=network-online.target mosdns.service
+          Wants=network-online.target mosdns.service
 
           [Service]
           Type=simple

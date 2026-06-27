@@ -9,17 +9,6 @@ global {
   auto_config_kernel_parameter: true
 }
 
-dns {
-  upstream {
-    mosdns: 'udp://<LAN_BIND_IP>:53'
-  }
-  routing {
-    request {
-      fallback: mosdns
-    }
-  }
-}
-
 node {
 }
 
@@ -34,9 +23,7 @@ group {
 
 routing {
   pname(daed, dae, dae-wing) -> must_direct
-  pname(NetworkManager, systemd-resolved, dnsmasq, chronyd, mosdns, smartdns) -> must_direct
-  domain(full: dmit.wwa.im) -> must_direct
-  domain(full: bwg.wwa.im) -> must_direct
+  pname(NetworkManager, systemd-resolved, dnsmasq, chronyd, mosdns) -> must_direct
 
   dip(geoip:private) -> direct
 

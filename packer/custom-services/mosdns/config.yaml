@@ -21,21 +21,22 @@ plugins:
       size: 8192
       lazy_cache_ttl: 86400
 
-  - tag: forward_smartdns
+  - tag: forward_cn
     type: forward
     args:
       concurrent: 2
       upstreams:
-        - addr: "udp://127.0.0.1:5335"
-        - addr: "tcp://127.0.0.1:5335"
+        - addr: "udp://223.5.5.5"
+        - addr: "udp://119.29.29.29"
+        - addr: "udp://114.114.114.114"
 
   - tag: forward_doh
     type: forward
     args:
       concurrent: 1
       upstreams:
-        - addr: "https://bwg.wwa.im/dq"
-          dial_addr: "104.194.84.105:443"
+        - addr: "https://cloudflare-dns.com/dns-query"
+          dial_addr: "1.1.1.1:443"
           enable_pipeline: true
 
   - tag: main_sequence
@@ -46,7 +47,7 @@ plugins:
         exec: accept
       - matches:
           - qname $geosite_cn
-        exec: "$forward_smartdns"
+        exec: "$forward_cn"
       - matches: has_resp
         exec: accept
       - matches:

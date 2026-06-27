@@ -1,19 +1,29 @@
-# 构建说明：源码 ISO + Packer 转 OVA
+# 构建说明：源码 ISO/OVA + Golden Image 注入
 
-本项目用两段式流水线产出 daed 网关 OVA，工作流见
+本项目用 VyOS 源码构建流水线产出 daed 网关 ISO/OVA，工作流见
 `.github/workflows/build-ova.yml`。
 
-## 为什么是两段式
+## 当前结合方式
+
+当前主流程不是另起一个 `vyos-golden-image/` 项目，而是复用现有
+`.github/workflows/build-ova.yml`：
+
+1. 克隆 `vyos-build`。
+2. 在 `data/live-build-config/includes.chroot` 注入 daed、MosDNS、geo 数据、配置模板、systemd 服务和 `/etc/sysctl.d/99-daed-gateway.conf`。
+3. 在 `data/live-build-config/hooks/live` 注入 `99-custom-proxy.chroot`，负责 live-build 阶段补权限和启用 late-bind。
+4. 运行 `build-vyos-image` 产出 ISO，并通过 flavor build hook 同时产出 OVA。
+
+`packer/build.pkr.hcl` 保留为旧的“安装 ISO 后再注入”的兼容路径；GitHub Actions 当前不再调用 `packer build`。
+
+## 为什么不是旧两段式
 
 VyOS 1.5 的 `build-vyos-image` 只能产出 ISO/raw 镜像；VMware OVA 需要
 VyOS 私有的签名工具，社区构建拿不到。所以：
 
-- **第一段（源码构建 ISO）**：用 `vyos/vyos-build:current` 容器，按官方方式
+- **源码构建 ISO/OVA**：用 `vyos/vyos-build:current` 容器，按官方方式
   `sudo --preserve-env ./build-vyos-image --architecture amd64 --build-by ... generic`
-  构建出 `build/live-image-amd64.hybrid.iso`。
-- **第二段（Packer 转 OVA）**：把该 ISO 喂给 `packer/build.pkr.hcl`——qemu
-  装进虚拟机、`setup-gateway.sh` 注入 daed/mosdns/smartdns、`qemu-img` 转
-  streamOptimized vmdk、手写 OVF、tar 成 `.ova`。
+  构建出 ISO，并用 flavor `build_hook` 将 raw 镜像转成 streamOptimized vmdk、
+  手写 OVF、tar 成 `.ova`。
 
 > 历史教训：1.4/1.5 **没有** `./configure` 或 `make vmware`（那是 1.3 equuleus
 > 时代的命令）。1.5 的 flavor 只有 `generic`，hooks 目录是 `hooks/`（不是

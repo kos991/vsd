@@ -6,8 +6,8 @@ BIN_DIR="${BASE}/bin"
 GEO_DIR="${BASE}/geo"
 DAED_DIR="${BASE}/daed"
 MOSDNS_DIR="${BASE}/mosdns"
-SMARTDNS_DIR="${BASE}/smartdns"
 SCRIPTS_DIR="${BASE}/scripts"
+SYSTEM_DIR="${BASE}/system"
 SYSTEMD_DIR="/etc/systemd/system"
 DAED_VERSION="${DAED_VERSION:-latest}"
 
@@ -15,12 +15,12 @@ if [ "$(id -u)" -ne 0 ]; then
   exec sudo -E bash "$0" "$@"
 fi
 
-mkdir -p "${BIN_DIR}" "${GEO_DIR}" "${DAED_DIR}" "${MOSDNS_DIR}" "${SMARTDNS_DIR}" "${SCRIPTS_DIR}"
+mkdir -p "${BIN_DIR}" "${GEO_DIR}" "${DAED_DIR}" "${MOSDNS_DIR}" "${SCRIPTS_DIR}" "${SYSTEM_DIR}"
 
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y curl jq unzip tar gzip xz-utils ca-certificates iproute2 sed
+apt-get install -y curl jq unzip tar gzip xz-utils ca-certificates iproute2 sed nftables
 fi
 
 github_latest_tag_with_asset() {
@@ -71,7 +71,6 @@ if [ "${DAED_VERSION}" = "latest" ]; then
 fi
 download_latest_asset "daeuniverse/daed" "daed-linux-x86_64\\.zip$" "daed" "${DAED_VERSION}"
 download_latest_asset "IrineSistiana/mosdns" "linux.*(x86_64|amd64).*(zip|tar\\.gz|tgz)$" "mosdns"
-download_latest_asset "pymumu/smartdns" "^smartdns-x86_64$" "smartdns"
 
 # geo data: daed dat files + mosdns geosite txt lists
 curl -fL --retry 5 --retry-delay 3 \
@@ -87,34 +86,20 @@ curl -fL --retry 5 --retry-delay 3 \
 if [ -d /tmp/custom-services ]; then
   cp -a /tmp/custom-services/. "${BASE}/"
 fi
-chmod +x "${SCRIPTS_DIR}/custom-services-latebind.sh" "${SCRIPTS_DIR}/geosite-update.sh" "${SCRIPTS_DIR}/daed-provision.sh"
+chmod +x "${SCRIPTS_DIR}/custom-services-latebind.sh" "${SCRIPTS_DIR}/dns-hijack.sh" "${SCRIPTS_DIR}/geosite-update.sh"
+
+install -m 0644 "${SYSTEM_DIR}/sysctl.conf" /etc/sysctl.d/99-daed-gateway.conf
+systemctl restart systemd-sysctl.service || sysctl --system
 
 # Templates the late-bind step renders each boot.
 cp -f "${DAED_DIR}/config.dae" "${DAED_DIR}/config.dae.template"
 cp -f "${MOSDNS_DIR}/config.yaml" "${MOSDNS_DIR}/config.yaml.template"
 
-cat >"${SYSTEMD_DIR}/smartdns.service" <<'EOF'
-[Unit]
-Description=SmartDNS CN resolver
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/config/custom-services/bin/smartdns -f -c /config/custom-services/smartdns/smartdns.conf
-Restart=on-failure
-RestartSec=3
-LimitNOFILE=1048576
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
 cat >"${SYSTEMD_DIR}/mosdns.service" <<'EOF'
 [Unit]
-Description=MosDNS LAN-bound DNS front desk
-After=network-online.target smartdns.service
-Wants=network-online.target smartdns.service
+Description=MosDNS LAN DNS engine
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -131,8 +116,8 @@ EOF
 cat >"${SYSTEMD_DIR}/daed.service" <<'EOF'
 [Unit]
 Description=daed eBPF transparent proxy
-After=network-online.target mosdns.service smartdns.service
-Wants=network-online.target mosdns.service smartdns.service
+After=network-online.target mosdns.service
+Wants=network-online.target mosdns.service
 
 [Service]
 Type=simple
@@ -153,7 +138,7 @@ EOF
 
 cat >"${SYSTEMD_DIR}/custom-services-latebind.service" <<EOF
 [Unit]
-Description=Late-bind LAN IP for daed/mosdns/smartdns
+Description=Late-bind LAN IP for daed/mosdns
 After=network-online.target
 Wants=network-online.target
 

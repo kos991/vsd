@@ -1,5 +1,5 @@
 [Unit]
-Description=Late-bind LAN IP for daed/mosdns/smartdns
+Description=Late-bind LAN IP for daed/mosdns
 After=network-online.target
 Wants=network-online.target
 

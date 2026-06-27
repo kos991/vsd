@@ -4,9 +4,8 @@ set -e
 chmod +x \
   /usr/local/bin/daed \
   /usr/local/bin/mosdns \
-  /usr/local/bin/smartdns \
   /opt/custom-services/scripts/late-bind.sh \
-  /opt/custom-services/scripts/daed-provision.sh \
+  /opt/custom-services/scripts/dns-hijack.sh \
   /opt/custom-services/scripts/geosite-update.sh
 
 ln -sf /opt/custom-services/geo/geoip.dat /opt/custom-services/daed/geoip.dat

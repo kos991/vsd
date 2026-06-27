@@ -2,78 +2,46 @@
 set -e
 
 BASE="/opt/custom-services"
-LAN_IF_FILE="${BASE}/lan-interface"
-LAN_BIND_IP=""
-LAN_SUBNET=""
 
 resolve_lan_if() {
-  if [ -n "${LAN_INTERFACE:-}" ]; then
-    echo "${LAN_INTERFACE}"
-    return
-  fi
-
-  if [ -f "${LAN_IF_FILE}" ]; then
-    tr -d '[:space:]' <"${LAN_IF_FILE}"
-    return
-  fi
-
-  DEFAULT_IF="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
-  CAND="$(
-    ip -o -4 addr show scope global 2>/dev/null |
-      awk -v def="${DEFAULT_IF}" '
-        $2 == "lo" { next }
-        $2 ~ /^(dae|ifb|pim|docker|br-|veth|virbr)/ { next }
-        $2 != def { print $2; found=1; exit }
-        { fallback=$2 }
-        END { if (!found && fallback != "") print fallback }
-      '
-  )"
-
-  echo "${CAND:-${DEFAULT_IF}}"
+  ip -o -4 addr show scope global | awk '
+    $2 !~ /^(lo|docker|podman|br-|virbr|veth)/ {
+      split($4, a, "/")
+      print $2
+      exit
+    }
+  '
 }
 
+LAN_IF="${LAN_INTERFACE:-$(resolve_lan_if)}"
+if [ -z "${LAN_IF}" ]; then
+  echo "Unable to detect LAN interface. Set LAN_INTERFACE explicitly." >&2
+  exit 1
+fi
+
+LAN_IP=""
 for _ in $(seq 1 30); do
-  LAN_IF="$(resolve_lan_if)"
-  if ip link show "${LAN_IF}" >/dev/null 2>&1; then
-    LAN_CIDR="$(ip -o -4 addr show dev "${LAN_IF}" scope global | awk '{print $4; exit}')"
-    if [ -n "${LAN_CIDR}" ]; then
-      LAN_BIND_IP="${LAN_CIDR%/*}"
-      LAN_SUBNET="$(ip route show dev "${LAN_IF}" proto kernel scope link | awk '{print $1; exit}')"
-      LAN_SUBNET="${LAN_SUBNET:-${LAN_CIDR}}"
-      break
-    fi
-  fi
+  LAN_IP="$(ip -o -4 addr show dev "${LAN_IF}" scope global | awk 'NR==1 { split($4, a, "/"); print a[1] }')"
+  [ -n "${LAN_IP}" ] && break
   sleep 1
 done
 
-case "${LAN_BIND_IP}" in
-  ""|"0.0.0.0"|"127."*)
-    echo "Refusing unsafe or missing LAN bind address: '${LAN_BIND_IP}' on interface '${LAN_IF:-unknown}'" >&2
-    ip -o link show >&2 || true
-    ip -o -4 addr show scope global >&2 || true
+case "${LAN_IP}" in
+  ""|127.*|169.254.*|0.*)
+    echo "Refusing unsafe LAN DNS bind: interface=${LAN_IF}, ip=${LAN_IP:-none}" >&2
     exit 1
     ;;
 esac
 
-sed \
-  -e "s|<LAN_BIND_IP>|${LAN_BIND_IP}|g" \
-  -e "s|<LAN_SUBNET>|${LAN_SUBNET}|g" \
-  "${BASE}/mosdns/config.yaml.template" > "${BASE}/mosdns/config.yaml"
-
-sed \
-  -e "s|<LAN_BIND_IP>|${LAN_BIND_IP}|g" \
-  -e "s|<LAN_SUBNET>|${LAN_SUBNET}|g" \
-  "${BASE}/daed/config.dae.template" > "${BASE}/daed/config.dae"
+cp -f "${BASE}/mosdns/config.yaml.template" "${BASE}/mosdns/config.yaml"
+cp -f "${BASE}/daed/config.dae.template" "${BASE}/daed/config.dae"
+sed -i "s|<LAN_BIND_IP>|${LAN_IP}|g" "${BASE}/mosdns/config.yaml"
+"${BASE}/scripts/dns-hijack.sh" "${LAN_IF}"
 
 ln -sf "${BASE}/geo/geoip.dat" "${BASE}/daed/geoip.dat"
 ln -sf "${BASE}/geo/geosite.dat" "${BASE}/daed/geosite.dat"
 
 systemctl daemon-reload
-systemctl enable smartdns.service mosdns.service daed.service
-systemctl restart smartdns.service
+systemctl enable mosdns.service daed.service
 systemctl restart mosdns.service
 systemctl restart daed.service
-
-# daed stores DNS/routing in wing.db, not config.dae. After rendering the
-# late-bound template, import and select it through the local GraphQL API.
-"${BASE}/scripts/daed-provision.sh" || logger -t daed-provision "daed provisioning failed"
