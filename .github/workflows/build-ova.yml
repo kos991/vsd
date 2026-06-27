@@ -208,161 +208,161 @@ jobs:
 
           cp systemd/late-bind.service "${SYSTEMD}/late-bind.service"
           cat > "${SYSTEMD}/mosdns.service" <<'EOF'
-[Unit]
-Description=MosDNS LAN DNS engine
-After=network-online.target
-Wants=network-online.target
+          [Unit]
+          Description=MosDNS LAN DNS engine
+          After=network-online.target
+          Wants=network-online.target
 
-[Service]
-Type=simple
-Nice=-5
-OOMScoreAdjust=-200
-ExecStart=/usr/local/bin/mosdns start -c /opt/custom-services/mosdns/config.yaml
-ExecReload=/bin/systemctl try-restart mosdns.service
-Restart=on-failure
-RestartSec=3
-LimitNOFILE=1048576
+          [Service]
+          Type=simple
+          Nice=-5
+          OOMScoreAdjust=-200
+          ExecStart=/usr/local/bin/mosdns start -c /opt/custom-services/mosdns/config.yaml
+          ExecReload=/bin/systemctl try-restart mosdns.service
+          Restart=on-failure
+          RestartSec=3
+          LimitNOFILE=1048576
 
-[Install]
-WantedBy=multi-user.target
-EOF
+          [Install]
+          WantedBy=multi-user.target
+          EOF
 
           cat > "${SYSTEMD}/daed.service" <<'EOF'
-[Unit]
-Description=daed eBPF transparent proxy
-After=network-online.target mosdns.service
-Wants=network-online.target mosdns.service
+          [Unit]
+          Description=daed eBPF transparent proxy
+          After=network-online.target mosdns.service
+          Wants=network-online.target mosdns.service
 
-[Service]
-Type=simple
-Nice=-10
-OOMScoreAdjust=-500
-Environment=HOME=/root
-Environment=XDG_DATA_HOME=/root/.local/share
-ExecStartPre=-/bin/mount -t bpf bpf /sys/fs/bpf
-ExecStart=/usr/local/bin/daed run -c /opt/custom-services/daed/
-Restart=on-failure
-RestartSec=3
-LimitMEMLOCK=infinity
-LimitNOFILE=1048576
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_BPF CAP_SYS_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_BPF CAP_SYS_ADMIN
+          [Service]
+          Type=simple
+          Nice=-10
+          OOMScoreAdjust=-500
+          Environment=HOME=/root
+          Environment=XDG_DATA_HOME=/root/.local/share
+          ExecStartPre=-/bin/mount -t bpf bpf /sys/fs/bpf
+          ExecStart=/usr/local/bin/daed run -c /opt/custom-services/daed/
+          Restart=on-failure
+          RestartSec=3
+          LimitMEMLOCK=infinity
+          LimitNOFILE=1048576
+          AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_BPF CAP_SYS_ADMIN
+          CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_BPF CAP_SYS_ADMIN
 
-[Install]
-WantedBy=multi-user.target
-EOF
+          [Install]
+          WantedBy=multi-user.target
+          EOF
 
           cp scripts/99-custom-proxy.chroot "${HOOKS}/99-custom-proxy.chroot"
           chmod +x "${HOOKS}/99-custom-proxy.chroot"
 
           cat > "${GITHUB_WORKSPACE}/vyos-build/data/build-flavors/daed-gateway.toml" <<'EOF'
-image_format = ["iso", "ova"]
-artifact_format = ["iso", "ova"]
-disk_size = 10
+          image_format = ["iso", "ova"]
+          artifact_format = ["iso", "ova"]
+          disk_size = 10
 
-build_hook = """
-#!/usr/bin/env bash
-set -euo pipefail
+          build_hook = """
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-RAW_IMAGE="$1"
-VERSION="$2"
-ARCH="$3"
+          RAW_IMAGE="$1"
+          VERSION="$2"
+          ARCH="$3"
 
-OUT="vyos-${VERSION}-daed-gateway-${ARCH}.ova"
-VMDK="vyos-${VERSION}-daed-gateway-${ARCH}.vmdk"
-OVF="vyos-${VERSION}-daed-gateway-${ARCH}.ovf"
-MF="vyos-${VERSION}-daed-gateway-${ARCH}.mf"
+          OUT="vyos-${VERSION}-daed-gateway-${ARCH}.ova"
+          VMDK="vyos-${VERSION}-daed-gateway-${ARCH}.vmdk"
+          OVF="vyos-${VERSION}-daed-gateway-${ARCH}.ovf"
+          MF="vyos-${VERSION}-daed-gateway-${ARCH}.mf"
 
-qemu-img convert -f raw -O vmdk -o subformat=streamOptimized,adapter_type=lsilogic "${RAW_IMAGE}" "${VMDK}"
-VMDK_SIZE="$(stat -c '%s' "${VMDK}")"
-POPULATED_SIZE="$(du -B1 "${RAW_IMAGE}" | awk '{print $1}')"
+          qemu-img convert -f raw -O vmdk -o subformat=streamOptimized,adapter_type=lsilogic "${RAW_IMAGE}" "${VMDK}"
+          VMDK_SIZE="$(stat -c '%s' "${VMDK}")"
+          POPULATED_SIZE="$(du -B1 "${RAW_IMAGE}" | awk '{print $1}')"
 
-cat > "${OVF}" <<OVF
-<?xml version="1.0" encoding="UTF-8"?>
-<ovf:Envelope xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1" xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData" xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData" xmlns:vmw="http://www.vmware.com/schema/ovf">
-  <ovf:References>
-    <ovf:File ovf:id="file1" ovf:href="${VMDK}" ovf:size="${VMDK_SIZE}"/>
-  </ovf:References>
-  <ovf:NetworkSection>
-    <ovf:Info>Logical networks</ovf:Info>
-    <ovf:Network ovf:name="WAN"/>
-    <ovf:Network ovf:name="LAN"/>
-  </ovf:NetworkSection>
-  <ovf:DiskSection>
-    <ovf:Info>Virtual disk information</ovf:Info>
-    <ovf:Disk ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:capacity="10" ovf:capacityAllocationUnits="byte * 2^30" ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized" ovf:populatedSize="${POPULATED_SIZE}"/>
-  </ovf:DiskSection>
-  <ovf:VirtualSystem ovf:id="VyOS">
-    <ovf:Info>VyOS daed gateway</ovf:Info>
-    <ovf:Name>VyOS daed gateway</ovf:Name>
-    <ovf:OperatingSystemSection ovf:id="96" vmw:osType="debian12_64Guest">
-      <ovf:Info>Debian GNU/Linux 12 (64-bit)</ovf:Info>
-    </ovf:OperatingSystemSection>
-    <ovf:VirtualHardwareSection>
-      <ovf:Info>Virtual hardware requirements</ovf:Info>
-      <ovf:System>
-        <vssd:ElementName>Virtual Hardware Family</vssd:ElementName>
-        <vssd:InstanceID>0</vssd:InstanceID>
-        <vssd:VirtualSystemType>vmx-13</vssd:VirtualSystemType>
-      </ovf:System>
-      <ovf:Item>
-        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
-        <rasd:Description>Number of virtual CPUs</rasd:Description>
-        <rasd:ElementName>2 virtual CPU(s)</rasd:ElementName>
-        <rasd:InstanceID>1</rasd:InstanceID>
-        <rasd:ResourceType>3</rasd:ResourceType>
-        <rasd:VirtualQuantity>2</rasd:VirtualQuantity>
-      </ovf:Item>
-      <ovf:Item>
-        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
-        <rasd:Description>Memory Size</rasd:Description>
-        <rasd:ElementName>4096MB of memory</rasd:ElementName>
-        <rasd:InstanceID>2</rasd:InstanceID>
-        <rasd:ResourceType>4</rasd:ResourceType>
-        <rasd:VirtualQuantity>4096</rasd:VirtualQuantity>
-      </ovf:Item>
-      <ovf:Item>
-        <rasd:Address>0</rasd:Address>
-        <rasd:ElementName>SCSI Controller 0</rasd:ElementName>
-        <rasd:InstanceID>3</rasd:InstanceID>
-        <rasd:ResourceSubType>lsilogic</rasd:ResourceSubType>
-        <rasd:ResourceType>6</rasd:ResourceType>
-      </ovf:Item>
-      <ovf:Item>
-        <rasd:ElementName>Hard disk 1</rasd:ElementName>
-        <rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>
-        <rasd:InstanceID>4</rasd:InstanceID>
-        <rasd:Parent>3</rasd:Parent>
-        <rasd:ResourceType>17</rasd:ResourceType>
-      </ovf:Item>
-      <ovf:Item>
-        <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
-        <rasd:Connection>WAN</rasd:Connection>
-        <rasd:Description>Ethernet adapter on WAN</rasd:Description>
-        <rasd:ElementName>Network adapter 1</rasd:ElementName>
-        <rasd:InstanceID>5</rasd:InstanceID>
-        <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
-        <rasd:ResourceType>10</rasd:ResourceType>
-      </ovf:Item>
-      <ovf:Item>
-        <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
-        <rasd:Connection>LAN</rasd:Connection>
-        <rasd:Description>Ethernet adapter on LAN</rasd:Description>
-        <rasd:ElementName>Network adapter 2</rasd:ElementName>
-        <rasd:InstanceID>6</rasd:InstanceID>
-        <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
-        <rasd:ResourceType>10</rasd:ResourceType>
-      </ovf:Item>
-    </ovf:VirtualHardwareSection>
-  </ovf:VirtualSystem>
-</ovf:Envelope>
-OVF
+          cat > "${OVF}" <<OVF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <ovf:Envelope xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1" xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData" xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData" xmlns:vmw="http://www.vmware.com/schema/ovf">
+            <ovf:References>
+              <ovf:File ovf:id="file1" ovf:href="${VMDK}" ovf:size="${VMDK_SIZE}"/>
+            </ovf:References>
+            <ovf:NetworkSection>
+              <ovf:Info>Logical networks</ovf:Info>
+              <ovf:Network ovf:name="WAN"/>
+              <ovf:Network ovf:name="LAN"/>
+            </ovf:NetworkSection>
+            <ovf:DiskSection>
+              <ovf:Info>Virtual disk information</ovf:Info>
+              <ovf:Disk ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:capacity="10" ovf:capacityAllocationUnits="byte * 2^30" ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized" ovf:populatedSize="${POPULATED_SIZE}"/>
+            </ovf:DiskSection>
+            <ovf:VirtualSystem ovf:id="VyOS">
+              <ovf:Info>VyOS daed gateway</ovf:Info>
+              <ovf:Name>VyOS daed gateway</ovf:Name>
+              <ovf:OperatingSystemSection ovf:id="96" vmw:osType="debian12_64Guest">
+                <ovf:Info>Debian GNU/Linux 12 (64-bit)</ovf:Info>
+              </ovf:OperatingSystemSection>
+              <ovf:VirtualHardwareSection>
+                <ovf:Info>Virtual hardware requirements</ovf:Info>
+                <ovf:System>
+                  <vssd:ElementName>Virtual Hardware Family</vssd:ElementName>
+                  <vssd:InstanceID>0</vssd:InstanceID>
+                  <vssd:VirtualSystemType>vmx-13</vssd:VirtualSystemType>
+                </ovf:System>
+                <ovf:Item>
+                  <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
+                  <rasd:Description>Number of virtual CPUs</rasd:Description>
+                  <rasd:ElementName>2 virtual CPU(s)</rasd:ElementName>
+                  <rasd:InstanceID>1</rasd:InstanceID>
+                  <rasd:ResourceType>3</rasd:ResourceType>
+                  <rasd:VirtualQuantity>2</rasd:VirtualQuantity>
+                </ovf:Item>
+                <ovf:Item>
+                  <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
+                  <rasd:Description>Memory Size</rasd:Description>
+                  <rasd:ElementName>4096MB of memory</rasd:ElementName>
+                  <rasd:InstanceID>2</rasd:InstanceID>
+                  <rasd:ResourceType>4</rasd:ResourceType>
+                  <rasd:VirtualQuantity>4096</rasd:VirtualQuantity>
+                </ovf:Item>
+                <ovf:Item>
+                  <rasd:Address>0</rasd:Address>
+                  <rasd:ElementName>SCSI Controller 0</rasd:ElementName>
+                  <rasd:InstanceID>3</rasd:InstanceID>
+                  <rasd:ResourceSubType>lsilogic</rasd:ResourceSubType>
+                  <rasd:ResourceType>6</rasd:ResourceType>
+                </ovf:Item>
+                <ovf:Item>
+                  <rasd:ElementName>Hard disk 1</rasd:ElementName>
+                  <rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>
+                  <rasd:InstanceID>4</rasd:InstanceID>
+                  <rasd:Parent>3</rasd:Parent>
+                  <rasd:ResourceType>17</rasd:ResourceType>
+                </ovf:Item>
+                <ovf:Item>
+                  <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
+                  <rasd:Connection>WAN</rasd:Connection>
+                  <rasd:Description>Ethernet adapter on WAN</rasd:Description>
+                  <rasd:ElementName>Network adapter 1</rasd:ElementName>
+                  <rasd:InstanceID>5</rasd:InstanceID>
+                  <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
+                  <rasd:ResourceType>10</rasd:ResourceType>
+                </ovf:Item>
+                <ovf:Item>
+                  <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
+                  <rasd:Connection>LAN</rasd:Connection>
+                  <rasd:Description>Ethernet adapter on LAN</rasd:Description>
+                  <rasd:ElementName>Network adapter 2</rasd:ElementName>
+                  <rasd:InstanceID>6</rasd:InstanceID>
+                  <rasd:ResourceSubType>VmxNet3</rasd:ResourceSubType>
+                  <rasd:ResourceType>10</rasd:ResourceType>
+                </ovf:Item>
+              </ovf:VirtualHardwareSection>
+            </ovf:VirtualSystem>
+          </ovf:Envelope>
+          OVF
 
-sha1sum "${OVF}" "${VMDK}" | awk '{print "SHA1(" $2 ")= " $1}' > "${MF}"
-tar -cf "${OUT}" "${OVF}" "${MF}" "${VMDK}"
-echo "${OUT}"
-"""
-EOF
+          sha1sum "${OVF}" "${VMDK}" | awk '{print "SHA1(" $2 ")= " $1}' > "${MF}"
+          tar -cf "${OUT}" "${OVF}" "${MF}" "${VMDK}"
+          echo "${OUT}"
+          """
+          EOF
 
       - name: Build injected ISO and OVA in vyos-build container
         shell: bash
