@@ -4,9 +4,24 @@ set -e
 BASE="/opt/custom-services"
 
 resolve_lan_if() {
+  local wan_if
+  wan_if="$(ip route show default | awk '/default/ {print $5; exit}')"
+
+  local lan_if
+  lan_if="$(ip -o -4 addr show scope global | awk -v wan="${wan_if}" '
+    $2 != wan && $2 !~ /^(lo|docker|podman|br-|virbr|veth)/ {
+      print $2
+      exit
+    }
+  ')"
+
+  if [ -n "${lan_if}" ]; then
+    echo "${lan_if}"
+    return
+  fi
+
   ip -o -4 addr show scope global | awk '
     $2 !~ /^(lo|docker|podman|br-|virbr|veth)/ {
-      split($4, a, "/")
       print $2
       exit
     }
@@ -34,7 +49,6 @@ case "${LAN_IP}" in
 esac
 
 cp -f "${BASE}/mosdns/config.yaml.template" "${BASE}/mosdns/config.yaml"
-cp -f "${BASE}/daed/config.dae.template" "${BASE}/daed/config.dae"
 sed -i "s|<LAN_BIND_IP>|${LAN_IP}|g" "${BASE}/mosdns/config.yaml"
 "${BASE}/scripts/dns-hijack.sh" "${LAN_IF}"
 

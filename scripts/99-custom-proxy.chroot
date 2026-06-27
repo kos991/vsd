@@ -11,7 +11,6 @@ chmod +x \
 ln -sf /opt/custom-services/geo/geoip.dat /opt/custom-services/daed/geoip.dat
 ln -sf /opt/custom-services/geo/geosite.dat /opt/custom-services/daed/geosite.dat
 
-cp -f /opt/custom-services/daed/config.dae /opt/custom-services/daed/config.dae.template
 cp -f /opt/custom-services/mosdns/config.yaml /opt/custom-services/mosdns/config.yaml.template
 
 # late-bind renders the LAN IP/subnet first, then starts the stack. Enabling the

@@ -104,7 +104,6 @@ daed 只做流量层分流：
     geolocation-!cn.txt
   daed/
     config.dae
-    config.dae.template
   mosdns/
     config.yaml
     config.yaml.template
