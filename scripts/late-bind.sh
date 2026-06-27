@@ -28,16 +28,20 @@ resolve_lan_if() {
   '
 }
 
-LAN_IF="${LAN_INTERFACE:-$(resolve_lan_if)}"
-if [ -z "${LAN_IF}" ]; then
-  echo "Unable to detect LAN interface. Set LAN_INTERFACE explicitly." >&2
-  exit 1
-fi
-
 LAN_IP=""
-for _ in $(seq 1 30); do
+LAN_IF="${LAN_INTERFACE:-}"
+for _ in $(seq 1 60); do
+  if [ -z "${LAN_IF}" ]; then
+    LAN_IF="$(resolve_lan_if)"
+  fi
+  if [ -z "${LAN_IF}" ]; then
+    sleep 1
+    continue
+  fi
+
   LAN_IP="$(ip -o -4 addr show dev "${LAN_IF}" scope global | awk 'NR==1 { split($4, a, "/"); print a[1] }')"
   [ -n "${LAN_IP}" ] && break
+  [ -z "${LAN_INTERFACE:-}" ] && LAN_IF=""
   sleep 1
 done
 
