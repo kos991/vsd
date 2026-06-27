@@ -7,6 +7,8 @@ global {
   lan_interface: auto
   wan_interface: auto
   auto_config_kernel_parameter: true
+  tcp_fast_open: true
+  ipv6: false
 }
 
 node {
@@ -17,7 +19,7 @@ group {
     policy: fixed(0)
   }
   proxy {
-    policy: fixed(0)
+    policy: min_moving_avg
   }
 }
 
@@ -25,51 +27,13 @@ routing {
   pname(daed, dae, dae-wing) -> must_direct
   pname(NetworkManager, systemd-resolved, dnsmasq, chronyd, mosdns) -> must_direct
 
-  dip(geoip:private) -> direct
+  # 极速 Hash 匹配：国外流媒体与 AI
+  domain(geosite:youtube, geosite:netflix, geosite:google) -> proxy
+  domain(geosite:openai, geosite:twitter) -> proxy
 
-  domain(
-      suffix:netflix.com,
-      suffix:netflix.net,
-      suffix:nflxext.com,
-      suffix:nflximg.com,
-      suffix:nflximg.net,
-      suffix:nflxso.net,
-      suffix:nflxvideo.net
-  ) -> proxy
-
-  domain(
-      suffix:youtube.com,
-      suffix:youtu.be,
-      suffix:googlevideo.com,
-      suffix:ytimg.com
-  ) -> proxy
-
-  domain(
-      suffix:gemini.google.com
-  ) -> proxy
-
-  domain(
-      suffix:google.com
-  ) -> proxy
-
-  domain(
-      suffix:chatgpt.com,
-      suffix:openai.com,
-      suffix:oaistatic.com,
-      suffix:oaiusercontent.com
-  ) -> proxy
-
-  domain(
-      suffix:grok.com,
-      suffix:x.ai,
-      suffix:x.com,
-      suffix:twitter.com,
-      suffix:twimg.com,
-      suffix:t.co
-  ) -> proxy
-
+  # 极速 Hash 匹配：国内直连
   domain(geosite:cn) -> direct
-  dip(geoip:cn) -> direct
+  dip(geoip:private, geoip:cn) -> direct
 
   fallback: proxy
 }
