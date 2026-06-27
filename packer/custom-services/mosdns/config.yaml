@@ -1,19 +1,19 @@
 log:
   level: info
-  file: "/config/custom-services/mosdns/mosdns.log"
+  file: "/opt/custom-services/mosdns/mosdns.log"
 
 plugins:
   - tag: geosite_cn
     type: domain_set
     args:
       files:
-        - "/config/custom-services/geo/geolocation-cn.txt"
+        - "/opt/custom-services/geo/geolocation-cn.txt"
 
   - tag: geosite_noncn
     type: domain_set
     args:
       files:
-        - "/config/custom-services/geo/geolocation-!cn.txt"
+        - "/opt/custom-services/geo/geolocation-!cn.txt"
 
   - tag: cache
     type: cache
