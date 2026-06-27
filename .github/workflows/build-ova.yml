@@ -215,6 +215,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Nice=-5
+OOMScoreAdjust=-200
 ExecStart=/usr/local/bin/mosdns start -c /opt/custom-services/mosdns/config.yaml
 ExecReload=/bin/systemctl try-restart mosdns.service
 Restart=on-failure
@@ -233,6 +235,8 @@ Wants=network-online.target mosdns.service
 
 [Service]
 Type=simple
+Nice=-10
+OOMScoreAdjust=-500
 Environment=HOME=/root
 Environment=XDG_DATA_HOME=/root/.local/share
 ExecStartPre=-/bin/mount -t bpf bpf /sys/fs/bpf
