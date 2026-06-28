@@ -207,6 +207,13 @@ jobs:
             sed -i 's|/config/custom-services|/opt/custom-services|g' "${config_file}"
           done
 
+          # Disable annoying systemd network altnames globally
+          mkdir -p "${INCLUDES}/etc/systemd/network/99-default.link.d"
+          cat > "${INCLUDES}/etc/systemd/network/99-default.link.d/no-altnames.conf" <<'EOF'
+          [Link]
+          AlternativeNamesPolicy=
+          EOF
+
           mkdir -p "${INCLUDES}/etc/sysctl.d"
           cp "${CUSTOM}/system/sysctl.conf" "${INCLUDES}/etc/sysctl.d/99-daed-gateway.conf"
 
