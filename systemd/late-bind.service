@@ -1,12 +1,17 @@
 [Unit]
 Description=Late-bind LAN IP for daed/mosdns
-After=network-online.target
+After=vyos-router.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=30
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/default/late-bind
 ExecStart=/opt/custom-services/scripts/late-bind.sh
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target

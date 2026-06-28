@@ -4,3 +4,5 @@ vyos-build/
 .superpowers/
 key-export/
 key-export.zip
+scripts/check_vyos.ps1
+scripts/setup_ssh_key.ps1

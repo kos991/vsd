@@ -33,15 +33,19 @@ plugins:
   - tag: forward_doh
     type: forward
     args:
-      concurrent: 1
+      concurrent: 2
       upstreams:
-        - addr: "https://cloudflare-dns.com/dns-query"
-          dial_addr: "1.1.1.1:443"
+        # [FIX] 使用用户提供的节点 DoH，实现抗污染与海外最优 CDN 节点分配
+        # 通过 dial_addr 绕过引导解析死循环问题
+        - addr: "https://<YOUR_DOH_ENDPOINT>"
+          dial_addr: "<YOUR_NODE_IP>:443"
           enable_pipeline: true
 
   - tag: main_sequence
     type: sequence
     args:
+      - matches: qtype 28
+        exec: reject 3
       - exec: "$cache"
       - matches: has_resp
         exec: accept

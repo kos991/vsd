@@ -1,9 +1,6 @@
 name: Build VyOS 1.5 daed Gateway Image
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       daed_version:

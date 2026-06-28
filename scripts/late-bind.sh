@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-set -e
+set -eu
 
 BASE="/opt/custom-services"
+
+log() {
+  echo "late-bind: $*"
+}
 
 resolve_lan_if() {
   local wan_if
@@ -30,17 +34,19 @@ resolve_lan_if() {
 
 LAN_IP=""
 LAN_IF="${LAN_INTERFACE:-}"
-for _ in $(seq 1 60); do
+for attempt in $(seq 1 120); do
   if [ -z "${LAN_IF}" ]; then
     LAN_IF="$(resolve_lan_if)"
   fi
   if [ -z "${LAN_IF}" ]; then
+    [ "${attempt}" = 1 ] && log "waiting for a LAN interface with IPv4 address"
     sleep 1
     continue
   fi
 
   LAN_IP="$(ip -o -4 addr show dev "${LAN_IF}" scope global | awk 'NR==1 { split($4, a, "/"); print a[1] }')"
   [ -n "${LAN_IP}" ] && break
+  [ "${attempt}" = 1 ] && log "waiting for IPv4 address on interface ${LAN_IF}"
   [ -z "${LAN_INTERFACE:-}" ] && LAN_IF=""
   sleep 1
 done
@@ -52,6 +58,21 @@ case "${LAN_IP}" in
     ;;
 esac
 
+log "using LAN interface ${LAN_IF} with address ${LAN_IP}"
+
+if [ -r "${BASE}/system/sysctl.conf" ]; then
+  sysctl -q -p "${BASE}/system/sysctl.conf" || true
+fi
+modprobe nf_conntrack 2>/dev/null || true
+if [ -w /proc/sys/net/netfilter/nf_conntrack_max ]; then
+  echo 2097152 >/proc/sys/net/netfilter/nf_conntrack_max || true
+fi
+for scope in all default "${LAN_IF}"; do
+  if [ -w "/proc/sys/net/ipv6/conf/${scope}/disable_ipv6" ]; then
+    echo 1 >"/proc/sys/net/ipv6/conf/${scope}/disable_ipv6" || true
+  fi
+done
+
 cp -f "${BASE}/mosdns/config.yaml.template" "${BASE}/mosdns/config.yaml"
 sed -i "s|<LAN_BIND_IP>|${LAN_IP}|g" "${BASE}/mosdns/config.yaml"
 "${BASE}/scripts/dns-hijack.sh" "${LAN_IF}"
@@ -60,6 +81,16 @@ ln -sf "${BASE}/geo/geoip.dat" "${BASE}/daed/geoip.dat"
 ln -sf "${BASE}/geo/geosite.dat" "${BASE}/daed/geosite.dat"
 
 systemctl daemon-reload
-systemctl enable mosdns.service daed.service
+systemctl disable mosdns.service daed.service >/dev/null 2>&1 || true
+systemctl reset-failed mosdns.service daed.service 2>/dev/null || true
 systemctl restart mosdns.service
-systemctl restart daed.service
+if systemctl is-active --quiet daed.service && [ "${RESTART_DAED:-0}" != "1" ]; then
+  log "daed service already active"
+else
+  if [ "${RESTART_DAED:-0}" = "1" ]; then
+    systemctl restart daed.service
+  else
+    systemctl start daed.service
+  fi
+fi
+log "mosdns service restarted and daed service is active"

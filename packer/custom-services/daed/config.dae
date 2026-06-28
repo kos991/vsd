@@ -24,16 +24,28 @@ group {
 }
 
 routing {
+  # ── [FIX] DNS 系统锚点：DoH 出口 IP 强制直连 ─────────────────
+  # 使用节点真实 IP 作为锚点，确保 DoH 请求可以直连发往代理服务器，避免死循环
+  dip(<YOUR_NODE_IP>) -> must_direct
+  # 国内 fallback DNS 也必须直连，防止意外
+  dip(223.5.5.5, 119.29.29.29, 114.114.114.114) -> direct
+
+  # ── 进程级规则 ────────────────────────────────────────────────
   pname(daed, dae, dae-wing) -> must_direct
   pname(NetworkManager, systemd-resolved, dnsmasq, chronyd, mosdns) -> must_direct
 
-  # 极速 Hash 匹配：国外流媒体与 AI
+  # ── [FIX] 私有 IP 提前（含 127.0.0.0/8），在流媒体规则之前 ──
+  dip(geoip:private) -> direct
+
+  # ── 流媒体 / AI / 社交（明确走 proxy） ───────────────────────
   domain(geosite:youtube, geosite:netflix, geosite:google) -> proxy
   domain(geosite:openai, geosite:twitter) -> proxy
 
-  # 极速 Hash 匹配：国内直连
+  # ── 国内直连 ──────────────────────────────────────────────────
   domain(geosite:cn) -> direct
-  dip(geoip:private, geoip:cn) -> direct
+  dip(geoip:cn) -> direct
 
-  fallback: proxy
+  # ── [FIX] fallback 改为 direct（可用性优先） ─────────────────
+  # 无代理节点时直连上网，避免 proxy blackhole 导致断网
+  fallback: direct
 }
