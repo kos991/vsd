@@ -188,13 +188,20 @@ jobs:
           cp -a packer/custom-services/mosdns/. "${CUSTOM}/mosdns/"
           cp -a packer/custom-services/scripts/dns-hijack.sh "${CUSTOM}/scripts/"
           cp -a packer/custom-services/scripts/geosite-update.sh "${CUSTOM}/scripts/"
+          cp -a packer/custom-services/scripts/update-daed.sh "${CUSTOM}/scripts/"
+          cp -a packer/custom-services/scripts/vsd.sh "${CUSTOM}/scripts/"
           cp -a packer/custom-services/system/. "${CUSTOM}/system/"
           cp scripts/late-bind.sh "${CUSTOM}/scripts/late-bind.sh"
+          
+          # Create global shortcut
+          ln -sf /opt/custom-services/scripts/vsd.sh "${BIN}/vsd"
           for config_file in \
             "${CUSTOM}/daed/config.dae" \
             "${CUSTOM}/mosdns/config.yaml" \
             "${CUSTOM}/scripts/dns-hijack.sh" \
             "${CUSTOM}/scripts/geosite-update.sh" \
+            "${CUSTOM}/scripts/update-daed.sh" \
+            "${CUSTOM}/scripts/vsd.sh" \
             "${CUSTOM}/scripts/late-bind.sh" \
             "${CUSTOM}/system/sysctl.conf"; do
             sed -i 's|/config/custom-services|/opt/custom-services|g' "${config_file}"
