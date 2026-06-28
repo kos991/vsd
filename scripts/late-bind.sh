@@ -60,6 +60,13 @@ esac
 
 log "using LAN interface ${LAN_IF} with address ${LAN_IP}"
 
+# Fallback DNS for the router itself, preventing daed subscription fetch failures
+if ! grep -q -i "nameserver" /etc/resolv.conf 2>/dev/null; then
+  log "resolv.conf is empty. Injecting fallback public DNS."
+  echo "nameserver 223.5.5.5" > /etc/resolv.conf
+  echo "nameserver 114.114.114.114" >> /etc/resolv.conf
+fi
+
 if [ -r "${BASE}/system/sysctl.conf" ]; then
   sysctl -q -p "${BASE}/system/sysctl.conf" || true
 fi
