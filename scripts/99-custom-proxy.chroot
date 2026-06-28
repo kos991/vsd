@@ -16,3 +16,6 @@ cp -f /opt/custom-services/mosdns/config.yaml /opt/custom-services/mosdns/config
 # late-bind renders the LAN IP/subnet first, then starts the stack. Enabling the
 # individual services here races against placeholder rendering on first boot.
 systemctl enable late-bind.service
+
+# Disable IPv6 PIM routing daemon to prevent the annoying pim6reg interface
+sed -i 's/^pim6d=yes/pim6d=no/g' /etc/frr/daemons || true
